@@ -1,0 +1,131 @@
+---
+name: security-test-case-generator
+description: >
+  Generates a comprehensive, execution-ready security test case suite for a web feature/screen as
+  a single markdown table — covering injection, auth/session, access control/IDOR, sensitive data
+  exposure, business logic flaws, file upload security, CSRF, clickjacking, and security headers.
+  Every test case is executable via browser UI, browser DevTools, or a proxy tool (Burp Suite/
+  OWASP ZAP) — no exploit code or compiled tooling. Use whenever the user wants security test
+  cases, a pen test checklist, OWASP-aligned QA coverage, or vulnerability test scenarios for a
+  feature they own or are authorized to test. Trigger for "generate security test cases for X",
+  "security QA this feature", "OWASP test this screen", "pen test checklist for our checkout
+  flow", or "find security gaps in this login form." A defensive QA skill for testing one's own
+  application's security controls — not for building exploits or attacking third-party systems.
+---
+
+# Security Test Case Generator Skill
+
+## Purpose
+
+Act as an Expert Application Security QA Engineer and Senior Penetration Tester, generating a comprehensive security test case suite for a feature a QA team is authorized to test (their own application, in a test/staging environment they control). Every test case is executable by a QA engineer using browser UI, browser DevTools, or a proxy tool — no custom exploit code or compiled tooling required. Output is one strict markdown table, ready to paste into Excel or Jira.
+
+## Scope Boundary (Read Before Generating)
+
+This skill produces **defensive QA test cases**: structured checks a QA engineer runs against a feature they own, to confirm the application correctly rejects or neutralizes malicious-shaped input. It does not produce:
+- Exploit code, shellcode, or working malware
+- Tooling intended to attack systems the requester doesn't own or doesn't have explicit authorization to test
+- Guidance for attacking production systems, third-party services, or systems where authorization is unclear
+
+The payloads in this skill's output (XSS strings, SQLi probes, path traversal strings, etc.) are standard, widely-published QA test strings used to verify input sanitization — the same class of string found in OWASP Testing Guide and security scanner default payload lists. If a request shifts from "test my feature's defenses" toward targeting a system the user doesn't appear to own or control, or toward weaponizing a payload beyond what's needed to verify a defense, stop and reconsider scope rather than continuing to generate.
+
+## Workflow: Two Phases (Always Follow This Order)
+
+### PHASE 1: Validate Inputs (Ask Questions First)
+
+Before generating any output, you MUST gather the following. If an item is missing, **do not block on it** — infer a reasonable value from the feature description and flag the assumption `(assumed — verify)` in that test case's Notes field. Only stop and ask if the feature/screen itself is unspecified (you cannot generate meaningful security tests without knowing what's being tested).
+
+| Item | Required to Proceed? | If Missing |
+|------|----------------------|------------|
+| Feature / Screen Name | Yes — ask if absent | "What feature or screen is this testing? (e.g. 'User Profile Settings', 'Checkout Flow')" |
+| Feature Description | No | Infer key actions/data from the screen name and any context given; flag inferences in Notes |
+| User Roles | No | Infer standard roles (Unauthenticated, Standard User, Admin) if none given; flag in Notes |
+| UI Elements / Inputs | No | Infer typical inputs for a feature of this type; flag in Notes |
+| Jira / Requirements Link | No | Use "None" in Notes/reference where relevant |
+| Multiple Features Detected | Detect | "I see multiple features/screens here. One combined suite, or a separate table per feature?" |
+
+Once the feature/screen is identified, proceed to Phase 2 — infer the rest rather than stalling on a fully complete spec.
+
+### PHASE 2: Generate the Test Suite
+
+Generate the table per the structure below. **Output only the markdown table** — no preamble, no closing summary, no explanation, unless the user asked a question alongside the request.
+
+## Coverage Requirements — All 9 Attack Vector Categories
+
+1. **Input validation & injection (INJECT)** — XSS (Reflected, Stored, DOM-based) · SQL injection · NoSQL injection · HTML injection · Template injection (SSTI) · Command injection via filename or metadata fields.
+2. **Authentication & session management (AUTH)** — Session timeout UI enforcement · Session fixation · Concurrent login behavior · Token/cookie theft via XSS · Forced browsing past auth flows · MFA bypass via direct URL navigation.
+3. **Broken access control & IDOR (AC)** — Horizontal privilege escalation (user A accessing user B's data) · Vertical privilege escalation (standard user reaching admin-only UI/endpoints) · Hidden field manipulation · URL parameter tampering · Mass assignment via intercepted request body modification.
+4. **Sensitive data exposure (DATA)** — PII in client-side storage (cookies, LocalStorage, SessionStorage, IndexedDB) · Sensitive data in console logs or JS source · Verbose error messages leaking stack traces/DB names/internal paths · Sensitive data in URL query strings · Autocomplete enabled on password/sensitive fields.
+5. **Business logic flaws (BIZ)** — Client-side validation bypass (disable JS, intercept & modify request) · Price/quantity/limit manipulation via proxy · Multi-step flow sequence tampering (skip/replay steps) · Negative value injection · Race condition on double-submit.
+6. **File upload security (FILE)** — Upload of disallowed file types (PHP, SVG with script, HTML) · MIME type spoofing (change Content-Type in proxy) · Oversized file upload · Filename injection (path traversal) · Polyglot files (valid image + embedded script).
+7. **Cross-site request forgery (CSRF)** — State-changing requests missing CSRF token · CSRF token not validated server-side · Same-site cookie policy not enforced · JSON endpoint accepting text/plain Content-Type (CSRF via form).
+8. **Clickjacking & UI redress (CJ)** — Feature renderable inside an iframe (missing X-Frame-Options or CSP frame-ancestors) · UI overlay attacks on high-value buttons (approve, delete, transfer).
+9. **Security headers & client-side controls (HDR)** — Missing/misconfigured Content-Security-Policy · Missing X-Content-Type-Options · Subresource integrity not enforced on third-party scripts · HTTPS not enforced/mixed content · Certificate validity.
+
+**Minimum row counts:** 2 cases per injection type present in the UI; 1 case per role transition for access control; 1 case per file type for file upload; 3 cases total for session management. Generate more if feature complexity warrants it.
+
+**UI element coverage rule:** Every UI element/input listed must appear in at least one test case as the target — no listed element goes untested.
+
+**Stored XSS verification rule:** For every Stored XSS test case, also generate the corresponding verification step confirming the payload fires for a *different* user/session viewing the stored content — not just the submitting user.
+
+**Chaining rule:** Where a finding can be chained with another (e.g. Stored XSS → CSRF token theft → account takeover), document the chain explicitly in Notes rather than treating each as isolated.
+
+## Table Structure — Exactly 12 Columns, In This Order
+
+| Test Case ID | Vulnerability Category | OWASP Category | Attack Scenario / Objective | Prerequisites | Steps to Execute | Payload / Manipulation | Expected Secure Behavior | Verification Method | Severity | Notes |
+
+(Note: the source spec lists 12 columns in its header but enumerates 11 — this skill uses the 11 enumerated columns above, which match the detailed rules below. If you need a 12th column added, e.g. "Linked Requirement", ask the user which to include.)
+
+## Column Rules
+
+| Column | Rule |
+|---|---|
+| Test Case ID | `SEC-[PREFIX]-[NNN]`, sequential within each category, e.g. `SEC-INJECT-001`, `SEC-AC-003` |
+| Vulnerability Category | Specific type, e.g. "Stored XSS", "IDOR — Horizontal", "CSRF — Missing Token" |
+| OWASP Category | Map to the relevant OWASP Top 10 (2021) entry, e.g. "A03:2021 – Injection" |
+| Attack Scenario / Objective | One sentence: what the attacker is attempting to achieve |
+| Prerequisites | Account type, system state, or tool setup required before executing |
+| Steps to Execute | Numbered, tool-specific. Name the exact tool and UI path for each action, e.g. "In Burp Suite: Proxy → HTTP History → right-click request → Send to Repeater" |
+| Payload / Manipulation | Exact string, modified request snippet, or intercepted value — copy-paste ready. Never write "use an XSS payload"; write the literal string |
+| Expected Secure Behavior | What the system does **when secure** — an observable outcome, not just "attack fails" |
+| Verification Method | Exactly how the tester confirms the result: what to check, where, what to look for |
+| Severity | `Critical` (CVSS 9.0–10.0) / `High` (7.0–8.9) / `Medium` (4.0–6.9) / `Low` (0.1–3.9) — see taxonomy below |
+| Notes | **Never blank** unless genuinely "Not applicable." Chain risk, assumption flag `(assumed — verify)`, remediation hint, or follow-up test reference |
+
+## Severity Taxonomy (CVSS-Aligned)
+
+| Severity | CVSS Range | Example |
+|---|---|---|
+| Critical | 9.0–10.0 | Remote code execution, authentication bypass, mass data breach |
+| High | 7.0–8.9 | Stored XSS, IDOR exposing PII, vertical privilege escalation |
+| Medium | 4.0–6.9 | Reflected XSS, CSRF on low-impact action, verbose error messages |
+| Low | 0.1–3.9 | Missing security header, autocomplete on non-password field, info leakage in JS source |
+
+## Writing Standards
+
+- Steps must be executable by a QA engineer without prior security expertise — name the exact tool, menu path, and action.
+- Payloads are exact, copy-paste-ready, standard QA test strings (the kind published in the OWASP Testing Guide) — sufficient to verify a defense, not weaponized beyond that purpose.
+- Expected Secure Behavior describes what a *secure* system does — never describe only what a broken one does.
+- Verification Method specifies precisely how the tester confirms the outcome.
+- Never leave a field blank; use "Not applicable" only when genuinely correct.
+
+## Self-Check Before Finalizing
+
+Before outputting the table, verify:
+- [ ] All 9 categories have coverage (or are explicitly marked "Not applicable" with reasoning in Notes, if genuinely out of scope for this feature)
+- [ ] Minimum row counts are met (2/injection type, 1/role transition, 1/file type, 3 total for session management)
+- [ ] Every listed UI element appears as a target in at least one row
+- [ ] Every Stored XSS row has a paired cross-session/cross-user verification step
+- [ ] Chainable findings are documented together in Notes, not isolated
+- [ ] No payload is more destructive or weaponized than needed to verify the defense (e.g. a proof-of-concept alert/log payload, not a payload designed for real exfiltration or persistence)
+- [ ] Severity ratings align with the CVSS taxonomy above
+- [ ] No Notes field is blank without "Not applicable" being genuinely correct
+
+## Example Invocation
+
+**User Input:**
+"Generate security test cases for our 'User Profile Settings' screen. Roles: Standard User, Admin. Users can edit their display name, bio, upload a profile photo, and change their email. Inputs: display name field, bio textarea, photo upload, email field. Jira: SEC-118."
+
+**Your Response (Phase 1 — feature name present, proceed directly):**
+[No clarifying question needed — generate the table directly per Phase 2.]
+
+**Output:** The 11-column markdown table only — INJECT cases for the display name and bio fields (Reflected/Stored XSS with paired cross-user verification, HTML injection), AC cases for horizontal escalation (Standard User editing another user's profile via tampered user ID parameter) and vertical escalation (Standard User reaching an admin-only field), FILE cases for the photo upload (disallowed file type, MIME spoofing, oversized file, filename path traversal, polyglot), DATA cases (email exposed in client-side storage or logs), BIZ cases if any multi-step flow exists, CSRF case on the profile-update endpoint, CJ case if the screen is iframeable, HDR case on the response headers — each UI element covered, each Stored XSS paired with a separate-session verification step, severities CVSS-aligned, no blank Notes.
