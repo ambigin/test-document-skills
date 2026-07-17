@@ -127,7 +127,7 @@ rules
 
 ### Prerequisites
 - GitHub Copilot Chat integrated in your IDE (VS Code, JetBrains, etc.)
-- This repository cloned or accessible in your workspace
+- This repository is cloned or accessible in your workspace
 
 ### Basic Workflow
 
@@ -199,16 +199,11 @@ To extend this repository with new skills:
    - Output format specifications
 3. Update this README with the new skill
 
-## License
-
-[Add your license here]
-
 ## Support
 
 For questions or issues:
 - Review the individual SKILL.md files for detailed documentation
 - Refer to Copilot's built-in help for integration issues
-- [Add your contact or support channel here]
 
 ---
 
