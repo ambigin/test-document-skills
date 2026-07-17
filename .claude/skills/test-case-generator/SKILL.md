@@ -14,10 +14,15 @@ description: >
 
 ## Purpose
 
-Generate a comprehensive Test Case Document as an XLSX spreadsheet from a Jira ticket. The output
-is a `.xlsx` file (not markdown) so it can be opened directly or copy-pasted into Google Sheets.
+Generate a comprehensive Test Case Document as an XLSX spreadsheet from a Jira ticket. The final
+output is a `.xlsx` file (not markdown) so it can be opened directly or copy-pasted into Google
+Sheets. Internally, the workbook is produced in two steps: this skill first writes an
+intermediate JSON file describing the workbook's contents, then hands that JSON to a shared
+converter script that does the actual openpyxl work. This keeps the "what data goes in the
+spreadsheet" logic (skill-specific) separate from the "how to build a formatted .xlsx"
+logic (shared), so other skills that also produce spreadsheets can reuse the same converter.
 
-## Workflow: Two Phases (Always Follow This Order)
+## Workflow: Three Phases (Always Follow This Order)
 
 ### PHASE 1: Validate Inputs (Ask Questions First)
 
@@ -32,56 +37,86 @@ Before generating any output, you MUST validate the following. If any item is mi
 
 **Mandatory Rule:** Do NOT proceed to Phase 2 until the user confirms all required items are ready, OR the user explicitly says "Proceed with inference" (then flag assumptions in Comments column).
 
-### PHASE 2: Generate XLSX File (Only After Phase 1 Completes)
+### PHASE 2: Generate Intermediate JSON (Only After Phase 1 Completes)
 
-Generate exactly one XLSX workbook with the structure and rules below. Do not generate the file until Phase 1 is complete.
+Do not generate the JSON until Phase 1 is complete.
 
-**Before writing any code, read `/mnt/skills/public/xlsx/SKILL.md` for openpyxl best practices (formatting, column widths, font, recalculation).**
+1. Build the test case rows in memory first (one row per test case), following the Column
+   Format Reference and Coverage Rules below.
+2. Assemble a single JSON object conforming to the **shared workbook-spec schema** (see
+   `shared/json_to_xlsx.py` docstring for the authoritative schema — do not invent your own
+   shape). At a high level:
+   - `sheets` is a list. This skill always produces two sheets: `Test Cases` and `Summary`
+     (plus one extra sheet per additional ticket if the user chose separate tables — see
+     "Handling Multiple Jira Tickets" below).
+   - The `Test Cases` sheet has exactly one block: the 14-column table described in
+     "Table Structure and Column Rules", with `wrap: true` set on any column whose values may
+     span multiple lines (Test Steps, Description, Expected Result, Comments) and
+     `width` set per the "Suggested Column Widths" table.
+   - Each row is a **positional array**, not a dict — values in the same order as that block's
+     `columns` list, e.g. `["TC-PROJ-123-001", "User can reset password...", ...]`. Do not
+     repeat the column headers on every row; the converter maps array position to column.
+   - For **Test Steps**, write each step on its own line within the same string value using
+     `\n` — not HTML `<br>` tags, and not multiple array entries — since `\n` is what the
+     converter turns into an in-cell line break when `wrap` is true.
+   - The `Summary` sheet has two blocks, stacked in this order: `"Summary Counts"` (title +
+     two columns, `Category`/`Count`) and `"Coverage Mapping"` (title + two columns,
+     `Acceptance Criterion`/`Covered By`). See "Summary & Coverage Sheet" below for content.
+3. Write this JSON to a scratch file, e.g. `/home/claude/test-cases-<TICKET-ID>.json`. This
+   file is intermediate — it is never shown to the user and never placed in
+   `/mnt/user-data/outputs/`.
 
-#### Build Steps
+### PHASE 3: Convert JSON to XLSX (Only After Phase 2 Completes)
 
-1. Build the test case rows in memory first (one row per test case), following the Column Format Reference and Coverage Rules below.
-2. Use **openpyxl** to create the workbook (not pandas), since this output is read by humans in Google Sheets/Excel and benefits from formatting — but no formulas are required here, so `scripts/recalc.py` is not needed.
-3. Create one sheet named `Test Cases` containing the 14-column table.
-4. Add a second sheet named `Summary` containing the Summary counts and the Coverage Mapping table (see "Summary & Coverage Sheet" below).
-5. Apply formatting:
-   - Header row: bold text, frozen (freeze_panes = "A2"), light fill color for readability.
-   - Use a consistent professional font (e.g., Calibri or Arial) throughout, per the xlsx skill's font guidance.
-   - Set sensible column widths per column (see widths below) so text is readable without manual resizing.
-   - Enable text wrapping (`wrap_text=True`) on multi-line cells (Test Steps, Description, Expected Result, etc.) and set row height to auto-fit reasonably.
-   - For the **Test Steps** column, write each step on its own line within the same cell using a line break (`\n` in the cell value, with `wrap_text=True`) instead of HTML `<br>` tags — `<br>` is a markdown/HTML convention and has no meaning in a spreadsheet cell.
-   - Apply a light conditional fill to the **Status** column is optional polish, not required; default "Not Executed" needs no special color.
-6. Save as `.xlsx` and place the final file in `/mnt/user-data/outputs/`.
-7. Present the file to the user with `present_files` (or equivalent) so they can download it or upload/copy it into Google Sheets.
+1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
+   ```bash
+   python .claude/skills/shared/json_to_xlsx.py /home/claude/test-cases-<TICKET-ID>.json /mnt/user-data/outputs/<TICKET-ID>-test-cases.xlsx
+   ```
+   This is a single shared script other skills also invoke (test-data-generator,
+   bug-report-generator, etc.) — never copy it into this skill's own folder.
+2. Confirm the script printed `"status": "success"`. If it errors, the JSON likely doesn't
+   match the schema (check for missing `columns`/`rows` keys, or a row array whose length or
+   order doesn't line up with that block's `columns`) — fix the JSON in Phase 2 and re-run; do
+   not patch the output XLSX by hand.
+3. Present the resulting file to the user with `present_files` (or equivalent) so they can
+   download it or upload/copy it into Google Sheets.
 
-#### Suggested Column Widths (characters)
+**Do not skip straight from Phase 1 to an XLSX file.** The JSON intermediate is mandatory even
+for small ticket sets — it's what keeps this skill's output compatible with the shared
+converter and easy to diff/debug if a column looks wrong.
 
-| Column | Width |
-|---|---|
-| Test Case ID | 16 |
-| Test Case Name | 30 |
-| Description | 35 |
-| Prerequisites | 28 |
-| Test Steps | 40 |
-| Input Data | 25 |
-| Expected Result | 35 |
-| Actual Result | 25 |
-| Status | 14 |
-| Labels | 22 |
-| Comments | 30 |
-| References | 18 |
-| Screenshot / Evidence | 22 |
-| Executed Date | 14 |
-
-## Table Structure and Column Rules (UNCHANGED — do not alter these specs)
+## Table Structure and Column Rules (do not alter these specs)
 
 **Exactly 14 columns, in this order:**
 
 | Test Case ID | Test Case Name | Description | Prerequisites | Test Steps | Input Data | Expected Result | Actual Result | Status | Labels | Comments | References | Screenshot / Evidence | Executed Date |
 
-**One row per test case. Each cell must remain a single row in the data model.** In the XLSX output, a single row means one spreadsheet row per test case — for multi-line content within a cell (e.g., Test Steps), use an in-cell line break (`\n` with `wrap_text=True`) rather than spanning multiple spreadsheet rows.
+**One row per test case.** In the JSON, this is one array per test case in the `Test Cases`
+block's `rows` list, with values in the exact order of the 14 columns above; the converter
+renders each array as a single spreadsheet row. For multi-line content within a cell (e.g.,
+Test Steps), use `\n` inside that column's string value — never split one test case across
+multiple rows, and never reorder values within a row relative to the column list.
 
-## Column Format Reference (UNCHANGED)
+#### Suggested Column Widths and Wrap Settings
+
+| Column | Width | Wrap |
+|---|---|---|
+| Test Case ID | 16 | false |
+| Test Case Name | 30 | false |
+| Description | 35 | true |
+| Prerequisites | 28 | true |
+| Test Steps | 40 | true |
+| Input Data | 25 | true |
+| Expected Result | 35 | true |
+| Actual Result | 25 | true |
+| Status | 14 | false |
+| Labels | 22 | false |
+| Comments | 30 | true |
+| References | 18 | false |
+| Screenshot / Evidence | 22 | false |
+| Executed Date | 14 | false |
+
+## Column Format Reference
 
 | Column | Format Rule | Examples | Default/Placeholder |
 |--------|-------------|----------|---------------------|
@@ -89,7 +124,7 @@ Generate exactly one XLSX workbook with the structure and rules below. Do not ge
 | Test Case Name | Short title describing the test | "User can reset password with valid email" | N/A (required) |
 | Description | 1–2 sentences describing what is tested | "Tests that password reset email is sent after user requests it." | (required) |
 | Prerequisites | Conditions that must be true before test runs | "User account exists; email is verified" | "None" if not applicable |
-| Test Steps | Numbered list: one action per line; use a line break between steps in the cell | 1. Click "Forgot Password"\n2. Enter email\n3. Click Submit | (required) |
+| Test Steps | Numbered list: one action per line, joined with `\n` in that row's array element for this column's position | "1. Click \"Forgot Password\"\n2. Enter email\n3. Click Submit" | (required) |
 | Input Data | Test data values used (usernames, emails, passwords, etc.) | "Email: test@example.com; New PW: SecureP@ss123" | "N/A" if not applicable |
 | Expected Result | What should happen if test passes | "Password reset email sent within 2 minutes" | (required) |
 | Actual Result | (leave blank for initial generation) | (empty until test is executed) | TBD (placeholder) |
@@ -100,7 +135,7 @@ Generate exactly one XLSX workbook with the structure and rules below. Do not ge
 | Screenshot / Evidence | Filename, link, or placeholder | "screenshot-01.png" or "TBD" or "Not attached - user login page mockup" | TBD (if no screenshot provided) |
 | Executed Date | ISO 8601 date format YYYY-MM-DD, or TBD | "2026-06-01" or "TBD" | TBD (placeholder) |
 
-## Test Case Coverage Rules (UNCHANGED — Mandatory)
+## Test Case Coverage Rules (Mandatory)
 
 You must generate between 5 and 20 test cases per ticket. Each test case must satisfy one of these types; ensure you cover all that apply:
 
@@ -111,14 +146,15 @@ You must generate between 5 and 20 test cases per ticket. Each test case must sa
 
 ## Summary & Coverage Sheet
 
-Add a `Summary` sheet to the workbook (second tab) containing:
+The `Summary` sheet (second tab) is built from two blocks in the Phase 2 JSON:
 
-1. **Summary counts** — total test cases, and a breakdown by category (positive flow, negative flow, edge/boundary, security, accessibility, performance/UX — only include categories that apply to the ticket).
-2. **Coverage Mapping table** — two columns, `Acceptance Criterion` and `Covered By`, listing each AC and the Test Case IDs that cover it.
+1. **Summary Counts block** — rows of `Category`/`Count`: total test cases, plus a breakdown by
+   category (positive flow, negative flow, edge/boundary, security, accessibility,
+   performance/UX — only include categories that apply to the ticket).
+2. **Coverage Mapping block** — rows of `Acceptance Criterion`/`Covered By`, listing each AC
+   and the Test Case IDs that cover it (comma-separated if more than one).
 
-This mirrors the same summary/coverage info previously shown beneath the markdown table, now placed on its own sheet so the `Test Cases` sheet stays a clean, importable table.
-
-## Error Handling & Edge Cases (UNCHANGED)
+## Error Handling & Edge Cases
 
 ### Handling Incomplete or Conflicting Acceptance Criteria
 If acceptance criteria are unclear or conflict after Phase 1:
@@ -134,7 +170,18 @@ If acceptance criteria are unclear or conflict after Phase 1:
 ### Handling Multiple Jira Tickets
 - Default behavior: Process only the primary ticket
 - If multiple distinct features detected: Ask user to choose (one table vs. separate tables)
-- If the user chooses separate tables, generate separate sheets per ticket within the same workbook (e.g., `VAS-359`, `VAS-360`), each followed by its own Summary section on the `Summary` sheet, rather than separate files, unless the user asks for separate files.
+- If the user chooses separate tables, add one additional `sheets` entry per ticket to the same
+  Phase 2 JSON (e.g. sheet names `VAS-359`, `VAS-360`), each with its own `Test Cases` block,
+  and add a corresponding `Summary Counts`/`Coverage Mapping` block pair per ticket to the
+  `Summary` sheet — still a single JSON file and a single workbook, not separate files, unless
+  the user asks for separate files.
+
+### Handling JSON/Converter Errors
+- If `json_to_xlsx.py` fails or produces an unexpected layout, do not hand-edit the resulting
+  XLSX. Re-check the Phase 2 JSON against the schema in the converter's docstring (most common
+  issues: a row array that's shorter/longer than that block's `columns` list, values in the
+  wrong position relative to `columns` order, or a missing `rows`/`columns` key on a block)
+  and re-run Phase 3.
 
 ## Example Invocation
 
@@ -145,4 +192,10 @@ If acceptance criteria are unclear or conflict after Phase 1:
 "I have the Jira ticket and three acceptance criteria. Do you have design screenshots or descriptions? If not, I'll use 'TBD' for the Screenshot/Evidence column. Ready to proceed?"
 
 **After User Confirms (Phase 2):**
-Generate an XLSX workbook with a `Test Cases` sheet (14 columns, 5–20 test cases covering positive, negative, edge, security, and UX scenarios as applicable) and a `Summary` sheet, save it to `/mnt/user-data/outputs/`, and present it to the user.
+Build the JSON workbook spec (`Test Cases` sheet: 14-column table, 5–20 test cases covering
+positive, negative, edge, security, and UX scenarios as applicable; `Summary` sheet: Summary
+Counts + Coverage Mapping blocks) and write it to a scratch file.
+
+**Phase 3:**
+Run `shared/json_to_xlsx.py` against that JSON to produce the `.xlsx`, save it to
+`/mnt/user-data/outputs/`, and present it to the user.
