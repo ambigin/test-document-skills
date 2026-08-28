@@ -14,13 +14,9 @@ description: >
 
 ## Purpose
 
-Generate a comprehensive Test Case Document as an XLSX spreadsheet from a Jira ticket. The final
-output is a `.xlsx` file (not markdown) so it can be opened directly or copy-pasted into Google
-Sheets. Internally, the workbook is produced in two steps: this skill first writes an
-intermediate JSON file describing the workbook's contents, then hands that JSON to a shared
-converter script that does the actual openpyxl work. This keeps the "what data goes in the
-spreadsheet" logic (skill-specific) separate from the "how to build a formatted .xlsx"
-logic (shared), so other skills that also produce spreadsheets can reuse the same converter.
+Generate a comprehensive Test Case Document from a Jira ticket. Output is an XLSX workbook
+produced by the shared converter script (`md_table_to_xlsx.py`), with both a Test Cases sheet
+and a Summary sheet.
 
 ## Workflow: Three Phases (Always Follow This Order)
 
@@ -35,55 +31,32 @@ Before generating any output, you MUST validate the following. If any item is mi
 | Multiple Tickets/Features | Detect | Scan input for multiple distinct Jira tickets or features | "I detected multiple features/tickets. Do you want: (A) One table for the primary ticket, or (B) Separate tables per feature/ticket?" |
 | Screenshots/Evidence | Detect | Note whether attachments or descriptions exist | Not required; proceed with TBD if missing |
 
-**Mandatory Rule:** Do NOT proceed to Phase 2 until the user confirms all required items are ready, OR the user explicitly says "Proceed with inference" (then flag assumptions in Comments column).
+**Mandatory Rule:** If all required items are clearly present in the user's message, proceed directly to Phase 2. Only pause if something is missing or genuinely ambiguous. When inferring, flag assumptions in the Comments column rather than asking.
 
-### PHASE 2: Generate Intermediate JSON (Only After Phase 1 Completes)
+### PHASE 2: Generate and Write Tables (Only After Phase 1 Completes)
 
-Do not generate the JSON until Phase 1 is complete.
+Do not generate the tables until Phase 1 is complete.
 
-1. Build the test case rows in memory first (one row per test case), following the Column
-   Format Reference and Coverage Rules below.
-2. Assemble a single JSON object conforming to the **shared workbook-spec schema** (see
-   `shared/json_to_xlsx.py` docstring for the authoritative schema — do not invent your own
-   shape). At a high level:
-   - `sheets` is a list. This skill always produces two sheets: `Test Cases` and `Summary`
-     (plus one extra sheet per additional ticket if the user chose separate tables — see
-     "Handling Multiple Jira Tickets" below).
-   - The `Test Cases` sheet has exactly one block: the 14-column table described in
-     "Table Structure and Column Rules", with `wrap: true` set on any column whose values may
-     span multiple lines (Test Steps, Description, Expected Result, Comments) and
-     `width` set per the "Suggested Column Widths" table.
-   - Each row is a **positional array**, not a dict — values in the same order as that block's
-     `columns` list, e.g. `["TC-PROJ-123-001", "User can reset password...", ...]`. Do not
-     repeat the column headers on every row; the converter maps array position to column.
-   - For **Test Steps**, write each step on its own line within the same string value using
-     `\n` — not HTML `<br>` tags, and not multiple array entries — since `\n` is what the
-     converter turns into an in-cell line break when `wrap` is true.
-   - The `Summary` sheet has two blocks, stacked in this order: `"Summary Counts"` (title +
-     two columns, `Category`/`Count`) and `"Coverage Mapping"` (title + two columns,
-     `Acceptance Criterion`/`Covered By`). See "Summary & Coverage Sheet" below for content.
-3. Write this JSON to a scratch file, e.g. `/home/claude/test-cases-<TICKET-ID>.json`. This
-   file is intermediate — it is never shown to the user and never placed in
-   `/mnt/user-data/outputs/`.
+1. Build all test case rows following the Column Format Reference and Coverage Rules below.
+2. **Do NOT echo the tables to chat.** Write both `## Sheet:` blocks directly to a temp file using the Write tool (session scratchpad path) or Bash (`/tmp/test-cases-<TICKET-ID>.md`). The file must contain:
+   - `## Sheet: Test Cases` — the 14-column table
+   - `## Sheet: Summary` — the Summary Counts table followed by the Coverage Mapping table
+   For multiple tickets, include one `## Sheet: <TICKET-ID>` block per ticket in the same file.
+3. Confirm with a single line: "✓ N test cases written — running converter..."
 
-### PHASE 3: Convert JSON to XLSX (Only After Phase 2 Completes)
+### PHASE 3: Convert Markdown Tables to XLSX (Only After Phase 2 Completes)
 
 1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
    ```bash
-   python .claude/skills/shared/json_to_xlsx.py /home/claude/test-cases-<TICKET-ID>.json /mnt/user-data/outputs/<TICKET-ID>-test-cases.xlsx
+   python .claude/skills/shared/md_table_to_xlsx.py /tmp/test-cases-<TICKET-ID>.md /mnt/user-data/outputs/<TICKET-ID>-test-cases.xlsx
    ```
-   This is a single shared script other skills also invoke (test-data-generator,
-   bug-report-generator, etc.) — never copy it into this skill's own folder.
-2. Confirm the script printed `"status": "success"`. If it errors, the JSON likely doesn't
-   match the schema (check for missing `columns`/`rows` keys, or a row array whose length or
-   order doesn't line up with that block's `columns`) — fix the JSON in Phase 2 and re-run; do
-   not patch the output XLSX by hand.
+   This is the same shared script all test-generation skills call — never copy it into this
+   skill's own folder.
+2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
+   contains valid pipe-delimited markdown tables with `## Sheet:` headings, fix if needed, and
+   re-run. Do not patch the output XLSX by hand.
 3. Present the resulting file to the user with `present_files` (or equivalent) so they can
-   download it or upload/copy it into Google Sheets.
-
-**Do not skip straight from Phase 1 to an XLSX file.** The JSON intermediate is mandatory even
-for small ticket sets — it's what keeps this skill's output compatible with the shared
-converter and easy to diff/debug if a column looks wrong.
+   download it or copy it into Google Sheets.
 
 ## Table Structure and Column Rules (do not alter these specs)
 
@@ -96,25 +69,6 @@ block's `rows` list, with values in the exact order of the 14 columns above; the
 renders each array as a single spreadsheet row. For multi-line content within a cell (e.g.,
 Test Steps), use `\n` inside that column's string value — never split one test case across
 multiple rows, and never reorder values within a row relative to the column list.
-
-#### Suggested Column Widths and Wrap Settings
-
-| Column | Width | Wrap |
-|---|---|---|
-| Test Case ID | 16 | false |
-| Test Case Name | 30 | false |
-| Description | 35 | true |
-| Prerequisites | 28 | true |
-| Test Steps | 40 | true |
-| Input Data | 25 | true |
-| Expected Result | 35 | true |
-| Actual Result | 25 | true |
-| Status | 14 | false |
-| Labels | 22 | false |
-| Comments | 30 | true |
-| References | 18 | false |
-| Screenshot / Evidence | 22 | false |
-| Executed Date | 14 | false |
 
 ## Column Format Reference
 
@@ -169,33 +123,13 @@ If acceptance criteria are unclear or conflict after Phase 1:
 
 ### Handling Multiple Jira Tickets
 - Default behavior: Process only the primary ticket
-- If multiple distinct features detected: Ask user to choose (one table vs. separate tables)
-- If the user chooses separate tables, add one additional `sheets` entry per ticket to the same
-  Phase 2 JSON (e.g. sheet names `VAS-359`, `VAS-360`), each with its own `Test Cases` block,
-  and add a corresponding `Summary Counts`/`Coverage Mapping` block pair per ticket to the
-  `Summary` sheet — still a single JSON file and a single workbook, not separate files, unless
-  the user asks for separate files.
+- If multiple distinct features detected: Ask user to choose (one combined table vs. separate tables)
+- If the user chooses separate tables, add one `## Sheet: <TICKET-ID>` block per ticket in the
+  Phase 2 markdown output — still a single temp file and a single workbook, not separate files,
+  unless the user asks for separate files.
 
-### Handling JSON/Converter Errors
-- If `json_to_xlsx.py` fails or produces an unexpected layout, do not hand-edit the resulting
-  XLSX. Re-check the Phase 2 JSON against the schema in the converter's docstring (most common
-  issues: a row array that's shorter/longer than that block's `columns` list, values in the
-  wrong position relative to `columns` order, or a missing `rows`/`columns` key on a block)
-  and re-run Phase 3.
+### Handling Converter Errors
+- If `md_table_to_xlsx.py` fails, do not hand-edit the resulting XLSX. Re-check the temp file
+  for valid pipe-delimited markdown syntax (each row starts and ends with `|`, header separator
+  row uses `---`, `## Sheet:` headings are present if multiple tables) and re-run Phase 3.
 
-## Example Invocation
-
-**User Input:**
-"Jira Ticket PROJ-456: Add password reset flow to user settings. Users should be able to request a reset email, verify a token, and set a new password. ACs: (1) User can request password reset email, (2) Reset token expires after 30min, (3) New password must meet complexity rules."
-
-**Your Response (Phase 1):**
-"I have the Jira ticket and three acceptance criteria. Do you have design screenshots or descriptions? If not, I'll use 'TBD' for the Screenshot/Evidence column. Ready to proceed?"
-
-**After User Confirms (Phase 2):**
-Build the JSON workbook spec (`Test Cases` sheet: 14-column table, 5–20 test cases covering
-positive, negative, edge, security, and UX scenarios as applicable; `Summary` sheet: Summary
-Counts + Coverage Mapping blocks) and write it to a scratch file.
-
-**Phase 3:**
-Run `shared/json_to_xlsx.py` against that JSON to produce the `.xlsx`, save it to
-`/mnt/user-data/outputs/`, and present it to the user.

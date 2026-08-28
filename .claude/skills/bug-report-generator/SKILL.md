@@ -17,14 +17,9 @@ description: >
 
 Act as a Senior QA Engineer with 10+ years of experience writing developer-ready bug reports.
 Transform a raw, unstructured observation into a complete, structured bug report that a developer
-can act on immediately — with zero back-and-forth for clarification. The final output is a
-`.xlsx` workbook (one sheet per bug), not plain text, so it can be opened directly, filed
-alongside other QA artifacts, or copy-pasted into Jira/Confluence. Internally, the workbook is
-produced in two steps: this skill first writes an intermediate JSON file describing the
-workbook's contents, then hands that JSON to a shared converter script that does the actual
-openpyxl work. This is the same JSON-intermediary pattern used by `test-case-generator` and
-`api-test-case-generator` — the "what goes in the report" logic here stays skill-specific, while
-"how to build a formatted .xlsx" stays in the one shared script every generator skill calls.
+can act on immediately. Output is an XLSX workbook produced by the shared converter script
+(`md_table_to_xlsx.py`). The report is a flat three-column table — Section, Field, Value — with
+one row per field across all six sections.
 
 ## Workflow: Three Phases (Always Follow This Order)
 
@@ -42,59 +37,34 @@ enough detail to make a confident, flagged inference (see Mandatory Rule below).
 | Multiple Distinct Bugs | Detect | Scan input for more than one distinct symptom or failure | "I detected what looks like multiple distinct bugs. Do you want: (A) One combined report, or (B) Separate sheets per bug in the same workbook?" |
 | Environment Details | Detect | OS, browser, app/API version, test environment, user role | Not required; mark as "(assumed — please verify)" or "Unknown — needs investigation" if missing |
 
-**Mandatory Rule:** Do NOT proceed to Phase 2 until the user confirms all required items are ready,
-OR the available detail is sufficient to make a reasonable inference. When inferring, flag every
-assumed field inline with "(assumed — please verify)" rather than asking — the goal is zero
-back-and-forth, not interrogation. Only stop and ask when the raw observation itself is missing,
-ambiguous between multiple bugs, or too thin to support any reasonable inference.
+**Mandatory Rule:** If the raw observation is present and sufficient to make reasonable inferences, proceed directly to Phase 2 — flag every assumed field with "(assumed — please verify)". Only stop and ask when the raw observation itself is missing, ambiguous between multiple bugs, or too thin to support any inference.
 
-### PHASE 2: Generate Intermediate JSON
+### PHASE 2: Generate Markdown Table
 
-Do not generate the JSON until Phase 1 is complete.
+Do not generate the table until Phase 1 is complete.
 
-1. Build the report content in memory first — one bug's worth of field/value pairs per sheet —
-   following the Report Structure and Field Format Reference below.
-2. Assemble a single JSON object conforming to the **shared workbook-spec schema** (see
-   `json_to_xlsx.py`'s docstring for the authoritative schema — do not invent your own shape).
-   At a high level for this skill:
-   - `sheets` is a list with **one sheet per bug**. For a single-bug or combined report, that's
-     one sheet; for separate reports on multiple distinct bugs, add one sheet per bug (see
-     "Handling Multiple Distinct Bugs" below).
-   - Each sheet has **six stacked blocks**, in this order, mirroring the original report's
-     sections. Blocks 1, 2, 4, and 5 use two columns, `Field` and `Value` — every row is a
-     `[field name, value]` pair, so a field is never silently omitted:
-     1. `"Summary"` — rows for Bug ID, Title, Severity, Priority, Frequency, Status
-     2. `"Environment"` — rows for OS & version, Browser & version, App / API version,
-        Test environment, User role / account
-     3. `"Steps to Reproduce"` — **two columns, `Step #` and `Description`**, one row per
-        reproduction step, numbered starting at 1
-     4. `"Behavior"` — rows for Expected Behavior, Actual Behavior
-     5. `"Impact & Analysis"` — rows for Impact, Root Cause Hypothesis,
-        Suggested Fix / Investigation Starting Point, Workaround, Regression Risk
-     6. `"Evidence & Links"` — rows for Screenshots / Logs / Evidence, Linked Test Case,
-        Linked Jira Ticket, Reported By, Reported Date
-   - Each row is a **positional array**, e.g. `["Severity", "High"]` or `["2", "Enter a valid
-     email and a password under 8 characters"]`. Do not use dicts.
-   - Set `wrap: true` on the `Value` / `Description` column of every block (long free text) and
-     `wrap: false` on `Field` / `Step #`. See widths table below.
-   - Never leave a `Value` cell blank — use "Not observed", "Not applicable", "none provided",
-     "None", or "Unknown — needs investigation" per the Field Format Reference, exactly as the
-     plain-text version did.
-3. Write this JSON to a scratch file, e.g. `/home/claude/bug-report-<slug>.json`. This file is
-   intermediate — it is never shown to the user and never placed in `/mnt/user-data/outputs/`.
+1. Build the report content following the Report Structure and Field Format Reference below.
+   The report is a **single markdown table with three columns: Section, Field, Value**.
+   Every field from all six sections maps to one row. Steps to Reproduce: one row per step
+   (Field = `Step 1`, `Step 2`, etc.). For multiple bugs (separate sheets), prefix each table
+   with `## Sheet: <bug-slug>`.
+2. Never leave a Value cell blank — use "Not observed", "Not applicable", "none provided",
+   "None", or "Unknown — needs investigation" per the Field Format Reference.
+3. **Do NOT echo the table to chat.** Write directly to a temp file using the Write tool
+   (session scratchpad path) or Bash (`/tmp/bug-report-<slug>.md`).
+4. Confirm with a single line: "✓ Bug report written — running converter..."
 
-### PHASE 3: Convert JSON to XLSX
+### PHASE 3: Convert Markdown Table to XLSX
 
 1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
    ```bash
-   python .claude/skills/shared/json_to_xlsx.py /home/claude/bug-report-<slug>.json /mnt/user-data/outputs/<slug>-bug-report.xlsx
+   python .claude/skills/shared/md_table_to_xlsx.py /tmp/bug-report-<slug>.md /mnt/user-data/outputs/<slug>-bug-report.xlsx
    ```
-   This is the same shared script `test-case-generator` and `api-test-case-generator` use —
-   never copy it into this skill's own folder.
-2. Confirm the script printed `"status": "success"`. If it errors, the JSON likely doesn't
-   match the schema (check for a row array whose length doesn't match its block's `columns`,
-   a missing `rows`/`columns` key on a block, or an invalid/duplicate sheet name) — fix the
-   JSON in Phase 2 and re-run; do not patch the output XLSX by hand.
+   This is the same shared script all generator skills call — never copy it into this skill's
+   own folder.
+2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
+   contains valid pipe-delimited markdown tables with the Section/Field/Value header row and
+   a separator row of `---`, fix if needed, and re-run. Do not patch the output XLSX by hand.
 3. Present the resulting file to the user with `present_files` (or equivalent).
 
 ## Report Structure (What Each Sheet Must Contain)
@@ -196,40 +166,10 @@ If the raw observation is too thin to support any reasonable inference after Pha
 ### Handling Multiple Distinct Bugs
 - Default behavior: if the observation clearly describes more than one distinct symptom or
   failure, ask the user whether they want one combined report or separate sheets per bug
-- If the user confirms separate sheets: add one sheet per bug to the same Phase 2 JSON (sheet
-  names like `Bug-1`, `Bug-2`, or a short slug of each Title, ≤31 characters) — still a single
-  Phase 3 conversion call, producing one workbook with multiple sheets, not separate files,
+- If the user confirms separate sheets: prefix each bug's table with a `## Sheet: <bug-slug>`
+  heading (e.g. `## Sheet: Bug-1`) in the Phase 2 markdown — still a single temp file and
+  a single Phase 3 call, producing one workbook with multiple sheets, not separate files,
   unless the user explicitly asks for separate files
-- If the user confirms a combined report: document the primary symptom fully in one sheet, and
+- If the user confirms a combined report: document the primary symptom fully in one table, and
   note secondary symptoms within the Impact or Actual Behavior rows rather than adding sheets
 
-## Example Invocation
-
-**User Input:**
-"On staging, when I try to check out with a saved card on mobile Safari, the payment spinner just spins forever and never resolves. Happened 3 times out of 3 tries. No console errors visible. This was found during TC-104."
-
-**Your Response (Phase 1):**
-"I have the raw observation, reproduction rate (3 of 3), and linked test case (TC-104). I don't
-have a screenshot/log or full environment details (exact app version, OS version) — I'll mark
-those as '(assumed — please verify)' / 'Unknown — needs investigation' where appropriate. Ready
-to proceed?"
-
-**After User Confirms (Phase 2):**
-Build the JSON workbook spec — one sheet, six blocks (Summary, Environment, Steps to Reproduce,
-Behavior, Impact & Analysis, Evidence & Links) — with Severity/Priority/Frequency assigned per
-the taxonomies, Root Cause Hypothesis populated with a reasoned guess, and every environment row
-explicitly marked as assumed or unknown rather than left blank. Write it to a scratch JSON file.
-
-**Phase 3:**
-Run `json_to_xlsx.py` against that JSON to produce the `.xlsx`, save it to
-`/mnt/user-data/outputs/`, and present it to the user.
-
-## Final Instructions
-
-- Output only the workbook. Do not add a preamble, summary, or closing remarks once Phase 2
-  begins, beyond what `present_files` shows.
-- If the raw observation contains multiple distinct bugs and the user has chosen separate
-  reports, add one sheet per bug to the same workbook rather than generating multiple files.
-- If steps cannot be made fully deterministic from the observation provided, write the best
-  possible steps and append "(needs verification)" to each uncertain step's Description.
-- Flag any field where you had to make an assumption rather than omitting it silently.

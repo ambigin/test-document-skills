@@ -31,7 +31,7 @@ Generate a comprehensive Usability Test Case Document in markdown table format, 
 
 If the user actually wants functional/QA test cases (pass/fail against acceptance criteria), point them to a functional test case generator instead and confirm before proceeding.
 
-## Workflow: Two Phases (Always Follow This Order)
+## Workflow: Three Phases (Always Follow This Order)
 
 ### PHASE 1: Validate Inputs (Ask Questions First)
 
@@ -48,11 +48,25 @@ Before generating any output, you MUST validate the following. If any item is mi
 | Multiple Flows/Features | Detect | Scan input for multiple distinct flows or features | "I detected multiple flows/features. Do you want: (A) One test plan covering all flows, or (B) Separate test case documents per flow?" |
 | Screenshots / Prototype Link | Detect | Note whether a design file, prototype, or staging link exists | Not required; proceed with TBD if missing |
 
-**Mandatory Rule:** Do NOT proceed to Phase 2 until the user confirms all required items are ready, OR the user explicitly says "Proceed with inference" (then flag assumptions in the Comments column).
+**Mandatory Rule:** If all required items are clearly present in the user's message, proceed directly to Phase 2. Flag inferred values in the Comments column rather than asking for confirmation.
 
-### PHASE 2: Generate Markdown Table (Only After Phase 1 Completes)
+### PHASE 2: Generate and Write Table (Only After Phase 1 Completes)
 
-Generate exactly one markdown table with the structure and rules below. Do not generate the table until Phase 1 is complete.
+Build all rows following the structure and rules below. **Do NOT echo the table to chat.**
+Write directly to a temp file using the Write tool (session scratchpad path) or Bash
+(`/tmp/usability-tests-<feature-slug>.md`). Confirm with: "✓ N scenarios written — running converter..."
+
+### PHASE 3: Convert Markdown Table to XLSX (Only After Phase 2 Completes)
+
+1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
+   ```bash
+   python .claude/skills/shared/md_table_to_xlsx.py /tmp/usability-tests-<feature-slug>.md /mnt/user-data/outputs/<feature-slug>-usability-tests.xlsx
+   ```
+   This is the same shared script all test-generation skills call — never copy it into this
+   skill's own folder.
+2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
+   contains valid pipe-delimited markdown table syntax, fix if needed, and re-run.
+3. Present the resulting XLSX file to the user with `present_files` (or equivalent).
 
 ## Table Structure and Column Rules
 
@@ -123,13 +137,3 @@ If success criteria are unclear or conflict after Phase 1:
 - **Moderated:** Comments column may include moderator probing questions and think-aloud prompts ("Ask: 'What are you thinking right now?'")
 - **Unmoderated:** Participant Instructions must be fully self-contained (no moderator available to clarify), and Comments should flag any step at risk of confusing a participant with no one to ask
 
-## Example Invocation
-
-**User Input:**
-"Jira Ticket PROJ-456: Add password reset flow to user settings. I want to usability test this with first-time users before we ship it. It'll be unmoderated, run through UserTesting."
-
-**Your Response (Phase 1):**
-"Got it — PROJ-456, password reset flow, tested unmoderated via UserTesting with first-time users. A few things I need before generating the test plan: (1) What does success look like for you here — e.g. completing the reset without needing to guess at error states? (2) Do you have a prototype or staging link participants would use? (3) Any specific UX concerns you want this to probe, like whether the entry point is discoverable from Settings? If not, I'll cover general heuristics by default."
-
-**After User Confirms (Phase 2):**
-Generate the 15-column markdown table with 5–15 task scenarios covering discoverability, happy-path completion, error recovery, and any flagged concerns, plus a final post-task satisfaction row — written as unmoderated-appropriate, self-contained participant instructions.

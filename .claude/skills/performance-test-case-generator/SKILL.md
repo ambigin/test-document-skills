@@ -20,7 +20,7 @@ description: >
 
 Act as a Senior Performance Engineer and QA Architect and generate a complete, execution-ready performance test suite for the system component or user journey described — covering all performance testing types, bottleneck identification, and measurable acceptance criteria a team would need before a release or scaling event. Output is one strict markdown table, ready to paste into Excel or Jira.
 
-## Workflow: Two Phases (Always Follow This Order)
+## Workflow: Three Phases (Always Follow This Order)
 
 ### PHASE 1: Validate Inputs (Ask Questions First)
 
@@ -39,9 +39,21 @@ Before generating any output, you MUST gather the following. If an item is missi
 
 Once the target and at least one traffic figure (baseline or peak) are known, proceed to Phase 2 — infer the rest rather than stalling on a fully complete spec.
 
-### PHASE 2: Generate the Test Suite
+### PHASE 2: Generate and Write the Test Suite
 
-Generate the table per the structure below. **Output only the markdown table** — no preamble, no closing summary, no explanation, unless the user asked a question alongside the request.
+Build all rows per the structure below. **Do NOT echo the table to chat.** Write directly to a temp file using the Write tool (session scratchpad path) or Bash (`/tmp/perf-tests-<component-slug>.md`). Confirm with: "✓ N test cases written — running converter..."
+
+### PHASE 3: Convert Markdown Table to XLSX
+
+1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
+   ```bash
+   python .claude/skills/shared/md_table_to_xlsx.py /tmp/perf-tests-<component-slug>.md /mnt/user-data/outputs/<component-slug>-perf-tests.xlsx
+   ```
+   This is the same shared script all test-generation skills call — never copy it into this
+   skill's own folder.
+2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
+   contains valid pipe-delimited markdown table syntax, fix if needed, and re-run.
+3. Present the resulting XLSX file to the user with `present_files` (or equivalent).
 
 ## Coverage Requirements — All 7 Performance Test Types
 
@@ -105,12 +117,3 @@ Before outputting the table, verify:
 - [ ] All assumed/inferred values are flagged `(assumed — verify)` in Notes
 - [ ] Traffic Profiles are script-ready (ramp/hold/ramp-down/think-time all specified, not just a peak number)
 
-## Example Invocation
-
-**User Input:**
-"Performance test the Checkout API. Baseline: 500 concurrent users, ~200 RPS weekday afternoons. Peak: 10,000 concurrent users in the first hour of a flash sale. Stack: Node.js, PostgreSQL 15, Redis, AWS ECS with auto-scaling, CloudFront. No preference on tool."
-
-**Your Response (Phase 1 — target and both traffic figures present, proceed directly):**
-[No clarifying question needed — generate the table directly per Phase 2. Recommend k6 given the modern Node.js/HTTP stack, with rationale in Notes. Infer SLA targets as industry-standard for a checkout flow (e.g. p95 < 500ms, error rate < 0.1%) and flag `(assumed — verify)`.]
-
-**Output:** The 14-column markdown table only — 2 LOAD rows (baseline + peak), 1 STRESS row pushing past 10,000 VU to find the breaking point, 1 SPIKE row simulating flash-sale onset with near-zero ramp, 1 SOAK row at 60–80% of peak for 2+ hours monitoring Redis/Postgres connection pools, 1 SCALE row stepping load in 20% increments, 1 CONCUR row on shared inventory records during checkout, 1 RECOVER row killing an ECS node mid-load — with Postgres, Redis, ECS auto-scaling, and CloudFront each appearing as monitored bottlenecks at least once, and a scaling-latency assertion included given ECS auto-scaling is in play.

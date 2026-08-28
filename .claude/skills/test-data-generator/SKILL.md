@@ -15,10 +15,11 @@ description: >
 
 ## Purpose
 
-Generate a comprehensive, traceable, Excel-ready Test Data Document from minimal inputs.
-The output is a single markdown table of ≥50 rows covering all required data quality categories.
+Generate a comprehensive, traceable Test Data Document from minimal inputs.
+Output is an XLSX workbook of ≥50 rows covering all required data quality categories,
+produced by the shared converter script (`md_table_to_xlsx.py`).
 
-## Workflow: Two Phases (Always Follow This Order)
+## Workflow: Three Phases (Always Follow This Order)
 
 ### PHASE 1: Validate Inputs (Ask Questions First)
 
@@ -32,11 +33,25 @@ Before generating any output, you MUST validate the following. If any item is mi
 | Multiple Domains/Systems | Detect | Scan input for multiple distinct domains or systems | "I detected multiple domains/systems. Do you want: (A) One table covering all of them, or (B) Separate tables per domain?" |
 | Volume / Row Count | Detect | Note whether a specific row count or distribution was requested | Not required; default to 50 rows minimum at standard distribution if missing |
 
-**Mandatory Rule:** Do NOT proceed to Phase 2 until the user confirms all required items are ready, OR the user explicitly says "Proceed with inference" (then flag assumptions in the Notes column).
+**Mandatory Rule:** If all required items are clearly present or inferable, proceed directly to Phase 2. Flag all inferred values in the Notes column rather than asking for confirmation.
 
-### PHASE 2: Generate Markdown Table (Only After Phase 1 Completes)
+### PHASE 2: Generate and Write Table (Only After Phase 1 Completes)
 
-Generate exactly one markdown table with the structure and rules below. Do not generate the table until Phase 1 is complete.
+Build all rows following the structure and rules below. **Do NOT echo the table to chat.**
+Write directly to a temp file using the Write tool (session scratchpad path) or Bash
+(`/tmp/test-data-<domain-slug>.md`). Confirm with: "✓ N rows written — running converter..."
+
+### PHASE 3: Convert Markdown Table to XLSX (Only After Phase 2 Completes)
+
+1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
+   ```bash
+   python .claude/skills/shared/md_table_to_xlsx.py /tmp/test-data-<domain-slug>.md /mnt/user-data/outputs/<domain-slug>-test-data.xlsx
+   ```
+   This is the same shared script all test-generation skills call — never copy it into this
+   skill's own folder.
+2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
+   contains valid pipe-delimited markdown table syntax, fix if needed, and re-run.
+3. Present the resulting XLSX file to the user with `present_files` (or equivalent).
 
 ## Error Handling & Edge Cases
 
@@ -123,22 +138,9 @@ Generate a **minimum of 50 rows** distributed as:
 
 **Expected Behavior:** Accept | Reject | Reject with error | Flag for review | Trigger duplicate warning
 
-## Example Invocation
-
-**User Input:**
-"Give me test data for an e-commerce checkout form."
-
-**Your Response (Phase 1):**
-"Got it — e-commerce checkout. To build accurate coverage, could you share: (1) the specific fields to test (e.g., Card Number, Expiry, CVV, Shipping Address, Promo Code), and (2) any validation rules or a Jira ticket for those fields? If you don't have these handy, I can infer standard checkout fields and apply industry-standard validation rules — just confirm and I'll proceed that way."
-
-**After User Confirms (Phase 2):**
-Generate the 8-column markdown table with ≥50 rows covering Valid, Invalid, Boundary, Missing, Special, and Duplicate categories for every field, per the Volume & Distribution targets above.
-
 ## Output Rules
 
-- Do not generate the table until Phase 1 is complete.
-- Do not truncate the table. Generate all rows before outputting.
-- Do not add explanatory prose before or after the table.
+- Generate all rows before writing to the temp file — do not truncate.
 - The Value column must never be blank — always use `NULL`, `EMPTY STRING`, or `WHITESPACE ONLY` for empty cases.
 - For boundary rows, always generate the pair: valid boundary + one-step-beyond (invalid boundary).
-- State all assumptions in the Notes column, never as prose outside the table.
+- State all assumptions in the Notes column only.

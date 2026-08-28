@@ -28,7 +28,7 @@ This skill produces **defensive QA test cases**: structured checks a QA engineer
 
 The payloads in this skill's output (XSS strings, SQLi probes, path traversal strings, etc.) are standard, widely-published QA test strings used to verify input sanitization — the same class of string found in OWASP Testing Guide and security scanner default payload lists. If a request shifts from "test my feature's defenses" toward targeting a system the user doesn't appear to own or control, or toward weaponizing a payload beyond what's needed to verify a defense, stop and reconsider scope rather than continuing to generate.
 
-## Workflow: Two Phases (Always Follow This Order)
+## Workflow: Three Phases (Always Follow This Order)
 
 ### PHASE 1: Validate Inputs (Ask Questions First)
 
@@ -45,9 +45,21 @@ Before generating any output, you MUST gather the following. If an item is missi
 
 Once the feature/screen is identified, proceed to Phase 2 — infer the rest rather than stalling on a fully complete spec.
 
-### PHASE 2: Generate the Test Suite
+### PHASE 2: Generate and Write the Test Suite
 
-Generate the table per the structure below. **Output only the markdown table** — no preamble, no closing summary, no explanation, unless the user asked a question alongside the request.
+Build all rows per the structure below. **Do NOT echo the table to chat.** Write directly to a temp file using the Write tool (session scratchpad path) or Bash (`/tmp/sec-tests-<feature-slug>.md`). Confirm with: "✓ N test cases written — running converter..."
+
+### PHASE 3: Convert Markdown Table to XLSX
+
+1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
+   ```bash
+   python .claude/skills/shared/md_table_to_xlsx.py /tmp/sec-tests-<feature-slug>.md /mnt/user-data/outputs/<feature-slug>-sec-tests.xlsx
+   ```
+   This is the same shared script all test-generation skills call — never copy it into this
+   skill's own folder.
+2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
+   contains valid pipe-delimited markdown table syntax, fix if needed, and re-run.
+3. Present the resulting XLSX file to the user with `present_files` (or equivalent).
 
 ## Coverage Requirements — All 9 Attack Vector Categories
 
@@ -120,12 +132,3 @@ Before outputting the table, verify:
 - [ ] Severity ratings align with the CVSS taxonomy above
 - [ ] No Notes field is blank without "Not applicable" being genuinely correct
 
-## Example Invocation
-
-**User Input:**
-"Generate security test cases for our 'User Profile Settings' screen. Roles: Standard User, Admin. Users can edit their display name, bio, upload a profile photo, and change their email. Inputs: display name field, bio textarea, photo upload, email field. Jira: SEC-118."
-
-**Your Response (Phase 1 — feature name present, proceed directly):**
-[No clarifying question needed — generate the table directly per Phase 2.]
-
-**Output:** The 11-column markdown table only — INJECT cases for the display name and bio fields (Reflected/Stored XSS with paired cross-user verification, HTML injection), AC cases for horizontal escalation (Standard User editing another user's profile via tampered user ID parameter) and vertical escalation (Standard User reaching an admin-only field), FILE cases for the photo upload (disallowed file type, MIME spoofing, oversized file, filename path traversal, polyglot), DATA cases (email exposed in client-side storage or logs), BIZ cases if any multi-step flow exists, CSRF case on the profile-update endpoint, CJ case if the screen is iframeable, HDR case on the response headers — each UI element covered, each Stored XSS paired with a separate-session verification step, severities CVSS-aligned, no blank Notes.

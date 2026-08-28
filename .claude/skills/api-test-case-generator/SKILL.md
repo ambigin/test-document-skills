@@ -20,15 +20,8 @@ description: >
 ## Purpose
 
 Act as a Senior API QA Engineer and generate a complete, execution-ready API test suite for a
-single endpoint — covering functional, non-functional, security, and edge-case scenarios a
-developer or QA engineer would need to validate before release. The final output is a `.xlsx`
-workbook, not a markdown table, so it can be opened directly or copy-pasted into Google Sheets.
-Internally, the workbook is produced in two steps: this skill first writes an intermediate JSON
-file describing the workbook's contents, then hands that JSON to a shared converter script that
-does the actual openpyxl work. This is the same JSON-intermediary pattern used by
-`test-case-generator` — the "what test cases go in the sheet" logic here stays skill-specific,
-while "how to build a formatted .xlsx" stays in the one shared script every test-generation
-skill calls.
+single endpoint — covering functional, non-functional, security, and edge-case scenarios.
+Output is an XLSX workbook produced by the shared converter script (`md_table_to_xlsx.py`).
 
 ## Workflow: Three Phases (Always Follow This Order)
 
@@ -48,68 +41,27 @@ Before generating any output, you MUST gather the following. If an item is missi
 
 Once endpoint, method, and auth type are known, proceed to Phase 2 — don't over-interrogate the user for a fully execution-ready spec; this skill is built to infer and flag rather than stall.
 
-### PHASE 2: Generate Intermediate JSON
+### PHASE 2: Generate Markdown Table
 
-Do not generate the JSON until Phase 1 is complete.
+Do not generate the table until Phase 1 is complete.
 
-1. Build the test case rows in memory first, following the Coverage Requirements and Column
-   Rules below.
-2. Assemble a single JSON object conforming to the **shared workbook-spec schema** (see
-   `json_to_xlsx.py`'s docstring for the authoritative schema — do not invent your own shape).
-   At a high level for this skill:
-   - `sheets` is a list with one sheet per endpoint, named after the route (e.g.
-     `POST-v1-users-login` — slashes and spaces aren't valid in a sheet name, so replace `/`
-     with `-` and drop query strings; truncate to 31 characters if needed).
-   - Each sheet has exactly one block: the 14-column table described in "Table Structure"
-     below, with `wrap: true` set on any column whose values may be long or multi-line
-     (Preconditions, Request Headers, Request Body, Expected Response Body, Expected Headers,
-     Assertions, Test Data, Notes) and `width` set per the widths table below.
-   - Each row is a **positional array** — values in the same order as `columns`, e.g.
-     `["API-TC-AUTH-001", "Valid credentials return JWT", "AUTH", "P1", ...]`. Do not repeat
-     column headers per row.
-   - JSON payloads for Request Headers / Request Body / Expected Response Body go in as plain
-     JSON text in that array position — no backtick fences and no markdown code-block syntax,
-     since these are spreadsheet cell values now, not markdown. Keep them valid, readable JSON
-     (e.g. `{"email": "user@example.com", "password": "short"}`).
-   - Multi-step Preconditions still use a numbered, semicolon-separated list within the single
-     string value: `"1. Seed user exists; 2. Account not locked"`.
-   - Assertions stays pipe-separated within the single string value, exactly as before:
-     `"Status = 401 | Response time < 500ms | Field error.code = \"TOKEN_EXPIRED\""`.
-3. Write this JSON to a scratch file, e.g. `/home/claude/api-tests-<endpoint-slug>.json`. This
-   file is intermediate — it is never shown to the user and never placed in
-   `/mnt/user-data/outputs/`.
+1. Build all test case rows following the Coverage Requirements and Column Rules below.
+2. **Do NOT echo the table to chat.** Write directly to a temp file using the Write tool (session scratchpad path) or Bash (`/tmp/api-tests-<endpoint-slug>.md`):
+   - Single endpoint: one table, no `## Sheet:` heading needed.
+   - Multiple endpoints (one workbook): prefix each table with `## Sheet: <endpoint-slug>` (replace `/` with `-`, drop query strings, truncate to 31 chars).
+3. Confirm with a single line: "✓ N test cases written — running converter..."
 
-#### Suggested Column Widths and Wrap Settings
-
-| Column | Width | Wrap |
-|---|---|---|
-| Test Case ID | 18 | false |
-| Test Case Name | 30 | false |
-| Category | 10 | false |
-| Priority | 8 | false |
-| Preconditions | 30 | true |
-| Request Headers | 35 | true |
-| Request Body | 35 | true |
-| Expected Status Code | 18 | false |
-| Expected Response Body | 35 | true |
-| Expected Headers | 25 | true |
-| Assertions | 40 | true |
-| Test Data | 25 | true |
-| Notes | 30 | true |
-| Linked Requirement | 18 | false |
-
-### PHASE 3: Convert JSON to XLSX
+### PHASE 3: Convert Markdown Table to XLSX
 
 1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
    ```bash
-   python .claude/skills/shared/json_to_xlsx.py /home/claude/api-tests-<endpoint-slug>.json /mnt/user-data/outputs/<endpoint-slug>-api-tests.xlsx
+   python .claude/skills/shared/md_table_to_xlsx.py /tmp/api-tests-<endpoint-slug>.md /mnt/user-data/outputs/<endpoint-slug>-api-tests.xlsx
    ```
-   This is the same shared script `test-case-generator` uses — never copy it into this skill's
-   own folder.
-2. Confirm the script printed `"status": "success"`. If it errors, the JSON likely doesn't
-   match the schema (check for a row array whose length or order doesn't line up with that
-   sheet's `columns`, an invalid sheet name, or a missing `rows`/`columns` key) — fix the JSON
-   in Phase 2 and re-run; do not patch the output XLSX by hand.
+   This is the same shared script all test-generation skills call — never copy it into this
+   skill's own folder.
+2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
+   exists and contains valid pipe-delimited markdown table syntax (header row, separator row
+   of `---`, data rows), fix if needed, and re-run. Do not patch the output XLSX by hand.
 3. Present the resulting file to the user with `present_files` (or equivalent). No preamble, no
    closing summary — the workbook is the deliverable, unless the user asked a question alongside
    the request.
@@ -160,11 +112,11 @@ Do not generate the JSON until Phase 1 is complete.
 
 ## Formatting Rules (Mandatory)
 
-- JSON in Request Headers and Request Body: valid, readable, copy-paste ready into Postman or a test framework. No backtick fences — that was a markdown-table convention and has no meaning in a spreadsheet cell.
-- Assertions cell: pipe (`|`) separated list, each clause independently checkable.
+- JSON in Request Headers and Request Body: valid, readable, copy-paste ready into Postman or a test framework.
+- Assertions cell: pipe (`\|`) separated list (escape the pipe inside a markdown cell), each clause independently checkable.
 - Multi-step preconditions: numbered list, semicolon-separated, in a single cell.
 - Use `—` (em dash) as the placeholder for intentionally empty cells — never leave a cell truly blank.
-- Do not truncate output — generate every row before converting.
+- Do not truncate output — generate every row before writing the temp file.
 
 ## Handling Multiple Endpoints
 
@@ -176,9 +128,9 @@ Do not generate the JSON until Phase 1 is complete.
   still a single Phase 3 conversion call, producing a single `.xlsx`.
 - If the user asks for separate files, run Phase 2 and Phase 3 once per endpoint independently.
 
-## Self-Check Before Converting (Phase 2 → Phase 3)
+## Self-Check Before Writing Temp File (Phase 2 → Phase 3)
 
-Before writing the JSON, verify:
+Before writing the markdown to the temp file, verify:
 - [ ] Every business rule supplied has at least one BIZ row
 - [ ] Every request field has at least one VAL row
 - [ ] Minimum row counts per category are met
@@ -187,26 +139,6 @@ Before writing the JSON, verify:
 - [ ] No Assertions value uses vague language ("works correctly", "as expected") instead of exact field paths/values
 - [ ] All status codes used appear in the taxonomy above
 - [ ] All assumed/inferred values are flagged `(assumed — verify)` in Notes
-- [ ] Each row array's length and order exactly match the sheet's `columns` list
-- [ ] Sheet name is a valid, unique, ≤31-character slug of the endpoint route
+- [ ] The table has exactly 14 columns in the correct order
+- [ ] Pipe characters inside cell values are escaped as `\|` so markdown parsing stays correct
 
-## Example Invocation
-
-**User Input:**
-"Generate test cases for `POST /v1/users/login`. Bearer/JWT auth issued on success. Body: `email` (string, required, valid email format), `password` (string, required, min 8 chars). Business rule: account locks after 5 failed attempts in 15 minutes. Jira: AUTH-204."
-
-**Your Response (Phase 1 — endpoint, method, and auth type are all present, so proceed directly):**
-[No clarifying question needed — proceed straight to Phase 2, inferring the response schema and flagging it `(assumed — verify)` in Notes since it wasn't fully specified.]
-
-**Phase 2:** Build the JSON workbook spec — one sheet named `POST-v1-users-login`, 14-column
-table, covering AUTH (valid login, expired token reuse N/A here since token is issued not
-consumed, wrong role N/A — flag as such), VAL (missing email, missing password, invalid email
-format, password under 8 chars, extra unexpected field, valid baseline for each), BIZ (lockout
-after 5 failed attempts, lockout window expiry, successful login resets counter), ERR (malformed
-JSON, wrong content-type), IDEM (repeated identical login requests), PERF (rate limit on repeated
-attempts), SEC (SQL injection in email field, XSS string in email field, account enumeration via
-error message differences) — minimum 3 AUTH, 1 VAL per field, 1 BIZ per rule, 2 ERR, 1 IDEM, 1
-PERF, 3 SEC, each invalid row paired with a valid baseline. Write it to a scratch JSON file.
-
-**Phase 3:** Run `json_to_xlsx.py` against that JSON to produce the `.xlsx`, save it to
-`/mnt/user-data/outputs/`, and present it to the user.
