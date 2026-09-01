@@ -22,6 +22,8 @@ and a Summary sheet.
 
 ### PHASE 1: Validate Inputs (Ask Questions First)
 
+> See [PHASE1_GUIDE.md](../shared/PHASE1_GUIDE.md) for common validation rules, multi-item detection, inference flagging, and file path conventions.
+
 Before generating any output, you MUST validate the following. If any item is missing or unclear, ask the specified question and wait for the user's answer.
 
 | Item | Required? | Validation Rule | Question to Ask if Missing |
@@ -38,7 +40,7 @@ Before generating any output, you MUST validate the following. If any item is mi
 Do not generate the tables until Phase 1 is complete.
 
 1. Build all test case rows following the Column Format Reference and Coverage Rules below.
-2. **Do NOT echo the tables to chat.** Write both `## Sheet:` blocks directly to a temp file using the Write tool (session scratchpad path) or Bash (`/tmp/test-cases-<TICKET-ID>.md`). The file must contain:
+2. **Do NOT echo the tables to chat.** Write both `## Sheet:` blocks directly to a temp file in the session scratchpad directory using the Write tool — never use `/tmp/` or other system temp paths. The file must contain:
    - `## Sheet: Test Cases` — the 14-column table
    - `## Sheet: Summary` — the Summary Counts table followed by the Coverage Mapping table
    For multiple tickets, include one `## Sheet: <TICKET-ID>` block per ticket in the same file.
@@ -48,15 +50,15 @@ Do not generate the tables until Phase 1 is complete.
 
 1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
    ```bash
-   python .claude/skills/shared/md_table_to_xlsx.py /tmp/test-cases-<TICKET-ID>.md /mnt/user-data/outputs/<TICKET-ID>-test-cases.xlsx
+   python3 .claude/skills/shared/md_table_to_xlsx.py <scratchpad>/test-cases-<TICKET-ID>.md <output>/<TICKET-ID>-test-cases.xlsx
    ```
+   Replace `<scratchpad>` with the session scratchpad path from your system context. For `<output>`, use `/mnt/user-data/outputs` on Claude.ai or `./outputs` when running locally.
    This is the same shared script all test-generation skills call — never copy it into this
    skill's own folder.
 2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
    contains valid pipe-delimited markdown tables with `## Sheet:` headings, fix if needed, and
    re-run. Do not patch the output XLSX by hand.
-3. Present the resulting file to the user with `present_files` (or equivalent) so they can
-   download it or copy it into Google Sheets.
+3. Tell the user the full output path and confirm the file is ready to open in Excel or import into Google Sheets. State the path in a single line — no preamble, no trailing summary.
 
 ## Table Structure and Column Rules (do not alter these specs)
 

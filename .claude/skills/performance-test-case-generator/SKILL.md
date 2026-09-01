@@ -24,6 +24,8 @@ Act as a Senior Performance Engineer and QA Architect and generate a complete, e
 
 ### PHASE 1: Validate Inputs (Ask Questions First)
 
+> See [PHASE1_GUIDE.md](../shared/PHASE1_GUIDE.md) for common validation rules, multi-item detection, inference flagging, and file path conventions.
+
 Before generating any output, you MUST gather the following. If an item is missing, **do not block on it** — infer a reasonable value and flag the assumption in that row's Notes column as `(assumed — verify)`. Only stop and ask if the target component/journey itself is unspecified, or if there is no usable signal for baseline/peak traffic at all (you cannot script a traffic profile from nothing).
 
 | Item | Required to Proceed? | If Missing |
@@ -41,19 +43,20 @@ Once the target and at least one traffic figure (baseline or peak) are known, pr
 
 ### PHASE 2: Generate and Write the Test Suite
 
-Build all rows per the structure below. **Do NOT echo the table to chat.** Write directly to a temp file using the Write tool (session scratchpad path) or Bash (`/tmp/perf-tests-<component-slug>.md`). Confirm with: "✓ N test cases written — running converter..."
+Build all rows per the structure below. **Do NOT echo the table to chat.** Write directly to a temp file in the session scratchpad directory using the Write tool — never use `/tmp/` or other system temp paths. Confirm with: "✓ N test cases written — running converter..."
 
 ### PHASE 3: Convert Markdown Table to XLSX
 
 1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
    ```bash
-   python .claude/skills/shared/md_table_to_xlsx.py /tmp/perf-tests-<component-slug>.md /mnt/user-data/outputs/<component-slug>-perf-tests.xlsx
+   python3 .claude/skills/shared/md_table_to_xlsx.py <scratchpad>/perf-tests-<component-slug>.md <output>/<component-slug>-perf-tests.xlsx
    ```
+   Replace `<scratchpad>` with the session scratchpad path from your system context. For `<output>`, use `/mnt/user-data/outputs` on Claude.ai or `./outputs` when running locally.
    This is the same shared script all test-generation skills call — never copy it into this
    skill's own folder.
 2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
    contains valid pipe-delimited markdown table syntax, fix if needed, and re-run.
-3. Present the resulting XLSX file to the user with `present_files` (or equivalent).
+3. Tell the user the full output path and confirm the file is ready to open in Excel or import into Google Sheets. State the path in a single line — no preamble, no trailing summary.
 
 ## Coverage Requirements — All 7 Performance Test Types
 

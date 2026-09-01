@@ -81,6 +81,8 @@ Transforms unstructured QA observations into developer-ready bug reports:
 - Clear suggested fix direction
 - One sheet per bug for multi-bug workbooks
 
+> **Note:** This skill produces a different table shape from all others. Instead of one row per test case, it outputs a flat three-column `Section / Field / Value` table — one row per report field. This is intentional; the layout maps directly to Jira's structured bug-report fields. The XLSX output will have one sheet per bug, each with the same three-column layout.
+
 **Output**: Markdown table (in chat) + XLSX workbook (via shared converter)
 
 **Triggers**: "Write a bug report for this", "Turn this observation into a bug report", "Create a Jira-ready bug report from these logs"
@@ -114,16 +116,30 @@ Generates task-based usability test scenarios for user research:
 
 ---
 
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| **README.md** | This file — project overview |
+| [qa_skills_documentation.md](qa_skills_documentation.md) | **Start here** — beginner guide, cheat sheet, and full per-skill reference (columns, coverage rules, ID formats, taxonomies) |
+| **SKILL.md files** | The actual instructions Claude follows at runtime — source of truth for skill behaviour |
+| [CLAUDE.md](CLAUDE.md) | Project-level context for Claude Code: layout, conventions, and how to add new skills |
+
 ## Project Structure
 
 ```
 Test Document Skills/
-├── README.md                                          # This file
-├── qa_skills_documentation.md                         # Skills reference (Markdown format)
+├── README.md
+├── CLAUDE.md                                          # Claude Code project context
+├── qa_skills_documentation.md                         # Get started + full skill reference
+├── requirements.txt                                   # pip install -r requirements.txt
+├── tests/
+│   └── sample-input.md                               # Smoke-test fixture for the converter
 └── .claude/
     └── skills/
         ├── shared/
-        │   └── md_table_to_xlsx.py                   # Shared markdown-to-XLSX converter
+        │   ├── md_table_to_xlsx.py                   # Shared markdown-to-XLSX converter
+        │   └── PHASE1_GUIDE.md                       # Common Phase 1 validation rules
         ├── api-test-case-generator/SKILL.md           # API testing skill
         ├── test-case-generator/SKILL.md               # Functional testing skill
         ├── test-data-generator/SKILL.md               # Test data skill
@@ -149,10 +165,10 @@ All seven skills use the same shared converter: `.claude/skills/shared/md_table_
 pip install openpyxl
 
 # Single-table conversion
-python .claude/skills/shared/md_table_to_xlsx.py input.md output.xlsx
+python3 .claude/skills/shared/md_table_to_xlsx.py input.md output.xlsx
 
 # Multi-sheet (input.md contains ## Sheet: headings)
-python .claude/skills/shared/md_table_to_xlsx.py multi-sheet.md output.xlsx
+python3 .claude/skills/shared/md_table_to_xlsx.py multi-sheet.md output.xlsx
 ```
 
 **Prerequisites:**
@@ -210,15 +226,15 @@ Every skill produces **both** of the following:
 ✅ **Contextual**: Asks smart questions if inputs are missing; makes reasonable assumptions otherwise  
 ✅ **Fast**: Generates hours of QA work in minutes  
 
-## Integration with GitHub Copilot / Claude Code
+## Integration with Claude Code and GitHub Copilot Chat
 
-These skills are designed to work seamlessly with Claude Code and GitHub Copilot Chat. The `.claude/skills/` directory structure allows the AI to discover and invoke the appropriate skill based on your request.
+Both Claude Code and GitHub Copilot Chat are supported, but they work differently.
 
-### Skill Discovery
-Claude automatically:
-- Detects skill names and descriptions from SKILL.md frontmatter
-- Suggests relevant skills based on your message intent
-- Routes requests to the most appropriate skill handler
+### Claude Code (recommended)
+Claude automatically discovers skills from the `.claude/skills/` directory, routes your request to the right skill, runs the three-phase workflow, and produces the `.xlsx` file — all from a single natural-language message. No manual steps required.
+
+### GitHub Copilot Chat
+Copilot Chat does not auto-discover skills, but you can drive the same workflow manually. See the **Using with GitHub Copilot Chat** section in [qa_skills_documentation.md](qa_skills_documentation.md) for step-by-step instructions.
 
 ## Contributing
 
@@ -233,6 +249,31 @@ To extend this repository with new skills:
 3. Phase 3 should always call `.claude/skills/shared/md_table_to_xlsx.py` — do not add skill-specific XLSX code
 4. Update this README with the new skill
 
+## Testing the Converter
+
+A smoke test is included to verify `md_table_to_xlsx.py` works after install and to catch regressions.
+
+```bash
+# Install dependency (one-time)
+pip install openpyxl
+
+# Run the smoke test — produces tests/sample-output.xlsx
+python3 .claude/skills/shared/md_table_to_xlsx.py tests/sample-input.md tests/sample-output.xlsx
+```
+
+Expected output:
+```json
+{"status": "success", "file": "tests/sample-output.xlsx"}
+```
+
+Open `tests/sample-output.xlsx` and verify:
+- Two sheets: **Test Cases** (3 data rows) and **Summary** (3 + 3 data rows across two tables)
+- Test Steps column in Test Cases shows multi-line content (numbered steps on separate lines, not literal `\n`)
+- Header row is frozen and styled (dark blue, white bold text)
+- Alternating row colors on even rows
+
+`tests/sample-input.md` also serves as the canonical example of the `## Sheet:` multi-sheet format and the `\n`-escaped multi-line cell syntax.
+
 ## License
 
 [Add your license here]
@@ -241,10 +282,10 @@ To extend this repository with new skills:
 
 For questions or issues:
 - Review the individual SKILL.md files for detailed documentation
-- Run `python .claude/skills/shared/md_table_to_xlsx.py --help` for converter usage
+- Run `python3 .claude/skills/shared/md_table_to_xlsx.py --help` for converter usage
 - [Add your contact or support channel here]
 
 ---
 
-**Last Updated**: August 2026  
+**Last Updated**: September 2026  
 **Skills Available**: 7 (API Testing, Functional Testing, Test Data, Security, Bug Reports, Performance, Usability)

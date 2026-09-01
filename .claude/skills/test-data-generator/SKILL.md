@@ -1,14 +1,16 @@
 ---
 name: test-data-generator
 description: >
-  Generates comprehensive, Excel-ready Test Data Documents for QA and data validation.
-  Use this skill whenever the user asks to generate test data, create a test data document,
-  produce test cases for a system or domain, validate field coverage for QA, or design
-  test data for ETL, onboarding, registration, checkout, or any other data-driven system.
-  Trigger even for casual requests like "give me test data for X", "help me test this form",
-  "generate test cases for these fields", or "I need data to test my API". If the user
-  mentions fields, validation rules, a Jira ticket, acceptance criteria, or a domain with
-  data inputs, use this skill.
+  Generates ≥50-row, Excel-ready Test Data Documents covering valid, invalid, boundary, missing,
+  special, and duplicate data categories — for any data-driven domain (registration, checkout,
+  ETL, onboarding, healthcare, banking, etc.). Use when the user asks for test data, sample
+  data, field coverage, or data sets to drive QA or API testing. Trigger for "give me test data
+  for X", "generate data to test this form", "I need test data for these fields", "boundary
+  values for this field", "what data should I use to test my API", or "help me test this
+  validation rule." Distinct from test case generation (this produces input values, not
+  pass/fail scenarios) and from API test case generation (this is data sets, not request/response
+  contracts). Trigger whenever the user describes fields, validation rules, or data constraints
+  and needs concrete values to use in testing.
 ---
 
 # Test Data Generator
@@ -22,6 +24,8 @@ produced by the shared converter script (`md_table_to_xlsx.py`).
 ## Workflow: Three Phases (Always Follow This Order)
 
 ### PHASE 1: Validate Inputs (Ask Questions First)
+
+> See [PHASE1_GUIDE.md](../shared/PHASE1_GUIDE.md) for common validation rules, multi-item detection, inference flagging, and file path conventions.
 
 Before generating any output, you MUST validate the following. If any item is missing or unclear, ask the specified question and wait for the user's answer.
 
@@ -38,20 +42,20 @@ Before generating any output, you MUST validate the following. If any item is mi
 ### PHASE 2: Generate and Write Table (Only After Phase 1 Completes)
 
 Build all rows following the structure and rules below. **Do NOT echo the table to chat.**
-Write directly to a temp file using the Write tool (session scratchpad path) or Bash
-(`/tmp/test-data-<domain-slug>.md`). Confirm with: "✓ N rows written — running converter..."
+Write directly to a temp file in the session scratchpad directory using the Write tool — never use `/tmp/` or other system temp paths. Confirm with: "✓ N rows written — running converter..."
 
 ### PHASE 3: Convert Markdown Table to XLSX (Only After Phase 2 Completes)
 
 1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
    ```bash
-   python .claude/skills/shared/md_table_to_xlsx.py /tmp/test-data-<domain-slug>.md /mnt/user-data/outputs/<domain-slug>-test-data.xlsx
+   python3 .claude/skills/shared/md_table_to_xlsx.py <scratchpad>/test-data-<domain-slug>.md <output>/<domain-slug>-test-data.xlsx
    ```
+   Replace `<scratchpad>` with the session scratchpad path from your system context. For `<output>`, use `/mnt/user-data/outputs` on Claude.ai or `./outputs` when running locally.
    This is the same shared script all test-generation skills call — never copy it into this
    skill's own folder.
 2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
    contains valid pipe-delimited markdown table syntax, fix if needed, and re-run.
-3. Present the resulting XLSX file to the user with `present_files` (or equivalent).
+3. Tell the user the full output path and confirm the file is ready to open in Excel or import into Google Sheets. State the path in a single line — no preamble, no trailing summary.
 
 ## Error Handling & Edge Cases
 

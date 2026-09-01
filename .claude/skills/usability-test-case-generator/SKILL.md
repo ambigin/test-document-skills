@@ -35,6 +35,8 @@ If the user actually wants functional/QA test cases (pass/fail against acceptanc
 
 ### PHASE 1: Validate Inputs (Ask Questions First)
 
+> See [PHASE1_GUIDE.md](../shared/PHASE1_GUIDE.md) for common validation rules, multi-item detection, inference flagging, and file path conventions.
+
 Before generating any output, you MUST validate the following. If any item is missing or unclear, ask the specified question and wait for the user's answer.
 
 | Item | Required? | Validation Rule | Question to Ask if Missing |
@@ -53,20 +55,20 @@ Before generating any output, you MUST validate the following. If any item is mi
 ### PHASE 2: Generate and Write Table (Only After Phase 1 Completes)
 
 Build all rows following the structure and rules below. **Do NOT echo the table to chat.**
-Write directly to a temp file using the Write tool (session scratchpad path) or Bash
-(`/tmp/usability-tests-<feature-slug>.md`). Confirm with: "✓ N scenarios written — running converter..."
+Write directly to a temp file in the session scratchpad directory using the Write tool — never use `/tmp/` or other system temp paths. Confirm with: "✓ N scenarios written — running converter..."
 
 ### PHASE 3: Convert Markdown Table to XLSX (Only After Phase 2 Completes)
 
 1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
    ```bash
-   python .claude/skills/shared/md_table_to_xlsx.py /tmp/usability-tests-<feature-slug>.md /mnt/user-data/outputs/<feature-slug>-usability-tests.xlsx
+   python3 .claude/skills/shared/md_table_to_xlsx.py <scratchpad>/usability-tests-<feature-slug>.md <output>/<feature-slug>-usability-tests.xlsx
    ```
+   Replace `<scratchpad>` with the session scratchpad path from your system context. For `<output>`, use `/mnt/user-data/outputs` on Claude.ai or `./outputs` when running locally.
    This is the same shared script all test-generation skills call — never copy it into this
    skill's own folder.
 2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
    contains valid pipe-delimited markdown table syntax, fix if needed, and re-run.
-3. Present the resulting XLSX file to the user with `present_files` (or equivalent).
+3. Tell the user the full output path and confirm the file is ready to open in Excel or import into Google Sheets. State the path in a single line — no preamble, no trailing summary.
 
 ## Table Structure and Column Rules
 
@@ -74,7 +76,7 @@ Write directly to a temp file using the Write tool (session scratchpad path) or 
 
 | Test Case ID | Task Scenario | Participant Instructions | Persona / User Type | Prerequisites | Success Criteria | UX Focus Area | Observed Behavior | Task Success Rating | Severity (if issue found) | Time on Task | Participant Quote / Feedback | Comments | References | Screenshot / Evidence |
 
-**One row per task scenario. Each cell must remain a single row (use HTML `<br>` for multi-line content within cells).**
+**One row per task scenario. For multi-line content within a cell (e.g. multiple success criteria), use `\n` — the shared converter renders these as line breaks in Excel.**
 
 ## Column Format Reference
 
