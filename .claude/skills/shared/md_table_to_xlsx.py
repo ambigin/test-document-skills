@@ -67,7 +67,7 @@ DATA_ROW_HEIGHT = 55
 
 def _split_row(line: str) -> list[str]:
     """Split a pipe-delimited markdown row into a list of stripped cell strings."""
-    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+    return [cell.strip().replace("\\n", "\n") for cell in line.strip().strip("|").split("|")]
 
 
 def _is_separator(line: str) -> bool:
@@ -182,20 +182,29 @@ def write_xlsx(
         # Freeze header row
         ws.freeze_panes = "A2"
 
-        # Column widths
+        # Column widths — use longest single line within each cell, not total length
         for col_idx, header in enumerate(headers, start=1):
             col_letter = get_column_letter(col_idx)
             max_data = max(
-                (len(str(row[col_idx - 1])) if col_idx - 1 < len(row) else 0
-                 for row in rows),
+                (
+                    max(len(ln) for ln in str(row[col_idx - 1]).split("\n"))
+                    if col_idx - 1 < len(row)
+                    else 0
+                    for row in rows
+                ),
                 default=0,
             )
             ws.column_dimensions[col_letter].width = _col_width(header, max_data)
 
-        # Row heights
+        # Row heights — scale with the number of wrapped lines in the tallest cell
         ws.row_dimensions[1].height = 20
-        for row_idx in range(2, len(rows) + 2):
-            ws.row_dimensions[row_idx].height = DATA_ROW_HEIGHT
+        for row_idx, row in enumerate(rows, start=2):
+            max_lines = max(
+                (str(row[ci]).count("\n") + 1 if ci < len(row) else 1
+                 for ci in range(len(headers))),
+                default=1,
+            )
+            ws.row_dimensions[row_idx].height = max(DATA_ROW_HEIGHT, max_lines * 15 + 5)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     wb.save(output_path)

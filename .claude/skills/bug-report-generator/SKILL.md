@@ -25,6 +25,8 @@ one row per field across all six sections.
 
 ### PHASE 1: Validate Inputs (Ask Questions First)
 
+> See [PHASE1_GUIDE.md](../shared/PHASE1_GUIDE.md) for common validation rules, multi-item detection, inference flagging, and file path conventions.
+
 Before generating any output, you MUST validate the following. If any item is missing or unclear,
 ask the specified question and wait for the user's answer — unless the user has already supplied
 enough detail to make a confident, flagged inference (see Mandatory Rule below).
@@ -50,22 +52,22 @@ Do not generate the table until Phase 1 is complete.
    with `## Sheet: <bug-slug>`.
 2. Never leave a Value cell blank — use "Not observed", "Not applicable", "none provided",
    "None", or "Unknown — needs investigation" per the Field Format Reference.
-3. **Do NOT echo the table to chat.** Write directly to a temp file using the Write tool
-   (session scratchpad path) or Bash (`/tmp/bug-report-<slug>.md`).
+3. **Do NOT echo the table to chat.** Write directly to a temp file in the session scratchpad directory using the Write tool — never use `/tmp/` or other system temp paths.
 4. Confirm with a single line: "✓ Bug report written — running converter..."
 
 ### PHASE 3: Convert Markdown Table to XLSX
 
 1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
    ```bash
-   python .claude/skills/shared/md_table_to_xlsx.py /tmp/bug-report-<slug>.md /mnt/user-data/outputs/<slug>-bug-report.xlsx
+   python3 .claude/skills/shared/md_table_to_xlsx.py <scratchpad>/bug-report-<slug>.md <output>/<slug>-bug-report.xlsx
    ```
+   Replace `<scratchpad>` with the session scratchpad path from your system context. For `<output>`, use `/mnt/user-data/outputs` on Claude.ai or `./outputs` when running locally.
    This is the same shared script all generator skills call — never copy it into this skill's
    own folder.
 2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
    contains valid pipe-delimited markdown tables with the Section/Field/Value header row and
    a separator row of `---`, fix if needed, and re-run. Do not patch the output XLSX by hand.
-3. Present the resulting file to the user with `present_files` (or equivalent).
+3. Tell the user the full output path and confirm the file is ready to open in Excel or import into Google Sheets. State the path in a single line — no preamble, no trailing summary.
 
 ## Report Structure (What Each Sheet Must Contain)
 

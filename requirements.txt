@@ -1,0 +1,5 @@
+# Python 3.10+ required (converter uses X | Y union type hints)
+openpyxl>=3.1,<4
+
+# Dev / testing
+pytest>=8.0

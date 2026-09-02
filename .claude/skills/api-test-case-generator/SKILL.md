@@ -27,6 +27,8 @@ Output is an XLSX workbook produced by the shared converter script (`md_table_to
 
 ### PHASE 1: Validate Inputs (Ask Questions First)
 
+> See [PHASE1_GUIDE.md](../shared/PHASE1_GUIDE.md) for common validation rules, multi-item detection, inference flagging, and file path conventions.
+
 Before generating any output, you MUST gather the following. If an item is missing, **do not block on it** — infer a reasonable value and flag the assumption in that row's Notes column as `(assumed — verify)`. Only stop and ask if the endpoint itself, method, or auth type is completely unspecified (you cannot meaningfully infer test cases without knowing what is being tested).
 
 | Item | Required to Proceed? | If Missing |
@@ -46,7 +48,7 @@ Once endpoint, method, and auth type are known, proceed to Phase 2 — don't ove
 Do not generate the table until Phase 1 is complete.
 
 1. Build all test case rows following the Coverage Requirements and Column Rules below.
-2. **Do NOT echo the table to chat.** Write directly to a temp file using the Write tool (session scratchpad path) or Bash (`/tmp/api-tests-<endpoint-slug>.md`):
+2. **Do NOT echo the table to chat.** Write directly to a temp file in the session scratchpad directory using the Write tool — never use `/tmp/` or other system temp paths:
    - Single endpoint: one table, no `## Sheet:` heading needed.
    - Multiple endpoints (one workbook): prefix each table with `## Sheet: <endpoint-slug>` (replace `/` with `-`, drop query strings, truncate to 31 chars).
 3. Confirm with a single line: "✓ N test cases written — running converter..."
@@ -55,16 +57,15 @@ Do not generate the table until Phase 1 is complete.
 
 1. Call the shared converter script — do **not** write ad-hoc openpyxl code for this step:
    ```bash
-   python .claude/skills/shared/md_table_to_xlsx.py /tmp/api-tests-<endpoint-slug>.md /mnt/user-data/outputs/<endpoint-slug>-api-tests.xlsx
+   python3 .claude/skills/shared/md_table_to_xlsx.py <scratchpad>/api-tests-<endpoint-slug>.md <output>/<endpoint-slug>-api-tests.xlsx
    ```
+   Replace `<scratchpad>` with the session scratchpad path from your system context. For `<output>`, use `/mnt/user-data/outputs` on Claude.ai or `./outputs` when running locally.
    This is the same shared script all test-generation skills call — never copy it into this
    skill's own folder.
 2. Confirm the script printed `"status": "success"`. If it errors, check that the temp file
    exists and contains valid pipe-delimited markdown table syntax (header row, separator row
    of `---`, data rows), fix if needed, and re-run. Do not patch the output XLSX by hand.
-3. Present the resulting file to the user with `present_files` (or equivalent). No preamble, no
-   closing summary — the workbook is the deliverable, unless the user asked a question alongside
-   the request.
+3. Tell the user the full output path and confirm the file is ready to open in Excel or import into Google Sheets. No preamble, no closing summary — the workbook is the deliverable, unless the user asked a question alongside the request.
 
 ## Coverage Requirements — All 8 Categories
 
