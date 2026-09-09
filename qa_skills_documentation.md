@@ -7,11 +7,12 @@ Your complete guide to generating QA documents with Claude Code — from first r
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [What You Get Every Time](#what-you-get-every-time)
-3. [Cheat Sheet — What to Say](#cheat-sheet--what-to-say)
-4. [Tips for Beginners](#tips-for-beginners)
-5. [Using with GitHub Copilot Chat](#using-with-github-copilot-chat)
-6. [Skill Reference](#skill-reference)
+2. [Project Context](#project-context)
+3. [What You Get Every Time](#what-you-get-every-time)
+4. [Cheat Sheet — What to Say](#cheat-sheet--what-to-say)
+5. [Tips for Beginners](#tips-for-beginners)
+6. [Using with GitHub Copilot Chat](#using-with-github-copilot-chat)
+7. [Skill Reference](#skill-reference)
    - [API Test Case Generator](#1-api-test-case-generator)
    - [Test Case Generator](#2-test-case-generator)
    - [Test Data Generator](#3-test-data-generator)
@@ -32,9 +33,17 @@ Your complete guide to generating QA documents with Claude Code — from first r
 pip install -r requirements.txt
 ```
 
-That's it. No configuration needed.
+### Step 2 — Add project context (recommended)
 
-### Step 2 — Just describe what you need
+Copy the context template into your project repo and fill it in once:
+
+```bash
+cp PROJECT_CONTEXT.md /path/to/your-project/PROJECT_CONTEXT.md
+```
+
+Edit it with your product background, user roles, key features, and domain glossary. Claude reads it automatically before every skill invocation — you won't need to paste this context each time, and skills will skip questions already answered there.
+
+### Step 3 — Just describe what you need
 
 You don't invoke skills by name. Just tell Claude what you're working on:
 
@@ -46,6 +55,33 @@ You don't invoke skills by name. Just tell Claude what you're working on:
 
 **"I need to test this API endpoint: POST /api/users/register"**
 → Claude picks up `api-test-case-generator` and generates 15+ test cases covering auth, validation, security, and more.
+
+---
+
+## Project Context
+
+`PROJECT_CONTEXT.md` is an optional but recommended file you copy into your own project repo (the codebase being tested) and fill in once. It gives every skill the project-specific knowledge it needs to produce accurate, domain-aware output without asking repetitive questions.
+
+### What to put in it
+
+| Section | What to write | Why skills need it |
+|---|---|---|
+| **Product Background** | 2–3 sentences on what the product does and who it's for | Sets domain tone and terminology throughout the output |
+| **Business Goal** | What success looks like for the product | Helps skills prioritise test focus and set severity correctly |
+| **User Roles** | Each role with a one-line description and key permissions | Used as test personas and for access-control / auth test cases |
+| **Key Workflows & Features** | High-level bullet list — no implementation detail | Prevents skills from generating test cases for features that don't exist |
+| **Domain Glossary** | Term: definition pairs | Ensures consistent, correct terminology in every generated document |
+
+### How to set it up
+
+```bash
+# Copy the template from this repo into your project
+cp PROJECT_CONTEXT.md /path/to/your-project/PROJECT_CONTEXT.md
+
+# Fill it in — keep entries to one sentence each
+```
+
+Claude reads it automatically before every skill invocation. If it doesn't exist, skills fall back to Phase 1 questions as normal.
 
 ---
 
