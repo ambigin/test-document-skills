@@ -4,6 +4,17 @@ All skills follow the same three-phase workflow. This guide captures the common 
 
 ---
 
+## Project Context — Read First
+
+Before running Phase 1 for any skill, check whether a `PROJECT_CONTEXT.md` file exists in the project root.
+
+- **If it exists:** read it in full. Treat its contents as ground truth. Do not ask Phase 1 questions that are already answered there (user roles, domain terms, key features, business goal).
+- **If it does not exist:** proceed with normal Phase 1 questioning as defined below.
+
+QA engineers copy the template from this repo into their own project repo and fill it in once. See `PROJECT_CONTEXT.md` at the repo root for the template.
+
+---
+
 ## When to Ask vs. When to Infer
 
 | Situation | Action |

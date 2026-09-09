@@ -124,6 +124,7 @@ Generates task-based usability test scenarios for user research:
 | [qa_skills_documentation.md](qa_skills_documentation.md) | **Start here** — beginner guide, cheat sheet, and full per-skill reference (columns, coverage rules, ID formats, taxonomies) |
 | **SKILL.md files** | The actual instructions Claude follows at runtime — source of truth for skill behaviour |
 | [CLAUDE.md](CLAUDE.md) | Project-level context for Claude Code: layout, conventions, and how to add new skills |
+| [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) | Template for project-specific context — copy into your project repo and fill in once |
 
 ## Project Structure
 
@@ -131,6 +132,7 @@ Generates task-based usability test scenarios for user research:
 Test Document Skills/
 ├── README.md
 ├── CLAUDE.md                                          # Claude Code project context
+├── PROJECT_CONTEXT.md                                 # Project context template — copy into your project repo
 ├── qa_skills_documentation.md                         # Get started + full skill reference
 ├── requirements.txt                                   # pip install -r requirements.txt
 ├── tests/
@@ -182,6 +184,17 @@ pip install openpyxl
 - Claude Code CLI or GitHub Copilot Chat integrated in your IDE (VS Code, JetBrains, etc.)
 - Python 3.10+ with `openpyxl` installed (`pip install openpyxl`)
 - This repository cloned or accessible in your workspace
+
+### Optional: Project Context (recommended for teams)
+
+Copy `PROJECT_CONTEXT.md` from this repo into the root of your **project repo** (the codebase being tested) and fill it in once:
+
+```bash
+cp PROJECT_CONTEXT.md /path/to/your-project/PROJECT_CONTEXT.md
+# Then edit it: product background, user roles, key features, domain glossary
+```
+
+Claude reads it automatically before every skill invocation. Skills will skip Phase 1 questions already answered there and use your domain terminology throughout the output.
 
 ### Basic Workflow
 

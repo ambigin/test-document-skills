@@ -66,8 +66,15 @@ python3 .claude/skills/shared/md_table_to_xlsx.py tests/sample-input.md tests/sa
 # Expected: {"status": "success", "file": "tests/sample-output.xlsx"}
 ```
 
+## Project context
+
+Before invoking any skill, check whether a `PROJECT_CONTEXT.md` file exists in the project root. If it does, read it before Phase 1. Its contents (user roles, business goal, key features, domain glossary) are ground truth — do not ask questions already answered there.
+
+`PROJECT_CONTEXT.md` in this repo is the unfilled template. QA engineers copy it into their own project repo and fill it in once per project.
+
 ## Which doc is authoritative?
 
 - **README.md** — user-facing overview and quick-start guide
 - **qa_skills_documentation.md** — detailed per-skill reference (triggers, columns, coverage rules) for contributors and integrators
 - **SKILL.md files** — the actual skill instructions Claude follows at runtime; these are the source of truth for skill behaviour
+- **PROJECT_CONTEXT.md** — project-specific context template; filled-in copy lives in the target project repo, not here
