@@ -45,7 +45,7 @@ md5sum skills/*/scripts/md_table_to_xlsx.py skills/*/references/PHASE1_GUIDE.md 
    ```bash
    python3 "${CLAUDE_SKILL_DIR}/scripts/md_table_to_xlsx.py" <scratchpad>/<slug>.md <output>/<slug>.xlsx
    ```
-   Use `/mnt/user-data/outputs/` on Claude.ai or `./outputs/` locally. Never write ad-hoc openpyxl code inside a skill.
+   `${CLAUDE_SKILL_DIR}` is a placeholder the assistant fills in with the installed skill's folder path — it is **not** a real shell environment variable and is not set by the installer. The SKILL.md files include a fallback: if the path isn't resolved, use the full path to the skill folder directly. Use `/mnt/user-data/outputs/` on Claude.ai or `./outputs/` locally. Never write ad-hoc openpyxl code inside a skill.
 
 ## Key conventions
 
