@@ -182,6 +182,34 @@ You can run it yourself:
 python3 skills/test-case-generator/scripts/md_table_to_xlsx.py input.md outputs/output.xlsx
 ```
 
+## Development
+
+### Setup
+
+```bash
+git clone https://github.com/ambigin/test-document-skills.git
+cd test-document-skills
+pip install openpyxl pytest
+```
+
+### Running tests
+
+```bash
+pytest tests/test_converter.py
+```
+
+Tests are parameterised over all seven skill converters and will catch any divergence between copies.
+
+### Running the converter manually
+
+```bash
+mkdir -p outputs
+python3 skills/test-case-generator/scripts/md_table_to_xlsx.py input.md outputs/output.xlsx
+# Expected: {"status": "success", "file": "outputs/output.xlsx"}
+```
+
+`outputs/` is gitignored.
+
 ## Contributing
 
 To add a skill:
