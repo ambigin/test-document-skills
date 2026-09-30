@@ -1,5 +1,1 @@
 outputs/
-tests/*.xlsx
-__pycache__/
-.pytest_cache/
-*.pyc
