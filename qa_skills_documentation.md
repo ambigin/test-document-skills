@@ -1,6 +1,6 @@
 # QA Skills — Get Started & Reference
 
-Your complete guide to generating QA documents with Claude Code — from first run to detailed skill reference.
+Your complete guide to generating QA documents with Claude Code or GitHub Copilot — from first run to detailed skill reference.
 
 ---
 
@@ -11,7 +11,7 @@ Your complete guide to generating QA documents with Claude Code — from first r
 3. [What You Get Every Time](#what-you-get-every-time)
 4. [Cheat Sheet — What to Say](#cheat-sheet--what-to-say)
 5. [Tips for Beginners](#tips-for-beginners)
-6. [Using with GitHub Copilot Chat](#using-with-github-copilot-chat)
+6. [Using with GitHub Copilot](#using-with-github-copilot)
 7. [Skill Reference](#skill-reference)
    - [API Test Case Generator](#1-api-test-case-generator)
    - [Test Case Generator](#2-test-case-generator)
@@ -20,32 +20,44 @@ Your complete guide to generating QA documents with Claude Code — from first r
    - [Bug Report Generator](#5-bug-report-generator)
    - [Performance Test Case Generator](#6-performance-test-case-generator)
    - [Usability Test Case Generator](#7-usability-test-case-generator)
-7. [Shared Converter Script](#shared-converter-script)
-8. [Quick Reference Table](#quick-reference-table)
+8. [Converter Script](#converter-script)
+9. [Quick Reference Table](#quick-reference-table)
 
 ---
 
 ## Quick Start
 
-### Step 1 — One-time setup
+### Step 1 — Install the skills
+
+**macOS / Linux / Git Bash**
 
 ```bash
-pip install -r requirements.txt
+curl -fsSL https://raw.githubusercontent.com/ambigin/test-document-skills/main/install.sh | bash
 ```
+
+**Windows PowerShell**
+
+```powershell
+irm https://raw.githubusercontent.com/ambigin/test-document-skills/main/install.ps1 | iex
+```
+
+Pick your assistant (Claude Code, GitHub Copilot, or both), the scope (**Global** for every project, **Project** for one repo you can share with your team), and the skills you want. The installer also checks for Python 3.8+ and `openpyxl`, which the skills need to build `.xlsx` files, and offers to install `openpyxl` if it's missing.
+
+See the [README](README.md#installation) for non-interactive options, updating, and uninstalling.
 
 ### Step 2 — Add project context (recommended)
 
-Copy the context template into your project repo and fill it in once:
+Copy the context template bundled with any skill into the project you're testing and fill it in once:
 
 ```bash
-cp PROJECT_CONTEXT.md /path/to/your-project/PROJECT_CONTEXT.md
+cp ~/.claude/skills/test-case-generator/assets/PROJECT_CONTEXT.md /path/to/your-project/PROJECT_CONTEXT.md
 ```
 
-Edit it with your product background, user roles, key features, and domain glossary. Claude reads it automatically before every skill invocation — you won't need to paste this context each time, and skills will skip questions already answered there.
+Edit it with your product background, user roles, key features, and domain glossary. The skills read it before asking questions — you won't need to paste this context each time, and skills will skip questions already answered there.
 
 ### Step 3 — Just describe what you need
 
-You don't invoke skills by name. Just tell Claude what you're working on:
+Start a new session. You don't have to invoke skills by name (though in Claude Code you can, e.g. `/test-case-generator`). Just tell the assistant what you're working on:
 
 **"I have a Jira ticket for a login feature, can you write test cases for it?"**
 → Claude picks up `test-case-generator`, asks a couple of questions, and hands you an `.xlsx` file.
@@ -74,24 +86,29 @@ You don't invoke skills by name. Just tell Claude what you're working on:
 
 ### How to set it up
 
+Every skill bundles the blank template at `assets/PROJECT_CONTEXT.md`. Copy it from an installed skill (or from `skills/<name>/assets/` in this repo) to the root of the project you're testing:
+
 ```bash
-# Copy the template from this repo into your project
-cp PROJECT_CONTEXT.md /path/to/your-project/PROJECT_CONTEXT.md
+cp ~/.claude/skills/test-case-generator/assets/PROJECT_CONTEXT.md /path/to/your-project/PROJECT_CONTEXT.md
 
 # Fill it in — keep entries to one sentence each
 ```
 
-Claude reads it automatically before every skill invocation. If it doesn't exist, skills fall back to Phase 1 questions as normal.
+The skills read it before Phase 1. If it doesn't exist, they fall back to Phase 1 questions as normal.
 
 ---
 
 ## What You Get Every Time
 
-1. Claude asks 1–2 clarifying questions if something is missing (otherwise it infers and moves on)
-2. An `.xlsx` file you can open directly in Excel or upload to Google Sheets
-3. A table you can paste into Jira or Confluence
+1. The assistant asks 1–2 clarifying questions if something is missing (otherwise it infers and moves on, flagging assumptions `(assumed — verify)`)
+2. An `.xlsx` file in `./outputs/` (or `/mnt/user-data/outputs/` on Claude.ai) that you can open in Excel or upload to Google Sheets
+3. A one-line confirmation with the file path — the full table isn't echoed to chat
 
-Every skill follows the same three-phase workflow: **Validate Inputs → Generate Markdown Table → Convert to XLSX**.
+Every skill follows the same three-phase workflow:
+
+1. **Validate Inputs** — ask only for what's missing and can't be inferred
+2. **Write Markdown Tables** — saved to a temp file outside your project, using `## Sheet: <name>` headings for multi-sheet workbooks
+3. **Convert to XLSX** — the skill runs its bundled `scripts/md_table_to_xlsx.py`
 
 ---
 
@@ -119,24 +136,22 @@ Every skill follows the same three-phase workflow: **Validate Inputs → Generat
 
 ---
 
-## Using with GitHub Copilot Chat
+## Using with GitHub Copilot
 
-Copilot Chat doesn't auto-discover skills, but you can drive the same three-phase workflow manually. The difference from Claude Code:
+The installer can put the skills where Copilot finds them: `~/.copilot/skills/` (global) or `<project>/.github/skills/` (project). Choose **GitHub Copilot** in the installer, or pass `--agent copilot` / `-Agent copilot`.
 
-| | Claude Code | GitHub Copilot Chat |
-|---|---|---|
-| Skill discovery | Automatic | Manual — you reference the SKILL.md |
-| Table generation | Written silently to a temp file | Copilot outputs the markdown table in chat |
-| XLSX conversion | Runs the converter automatically | You copy the table and run the converter yourself |
+1. Reload VS Code after installing.
+2. Open Copilot Chat in **agent mode**.
+3. Describe your task as you would in Claude Code — Copilot picks the matching skill, runs the three phases, and writes the `.xlsx`.
 
-### Step-by-step
+If the skills don't show up, turn on the `chat.useAgentSkills` setting in VS Code.
 
-**Step 1 — Reference the skill file in your prompt**
+### Fallback: attach the skill manually
 
-In VS Code Copilot Chat, use `#file:` to attach the relevant SKILL.md, then describe your task:
+If agent skills aren't available in your Copilot setup, attach the SKILL.md with `#file:` and describe the task:
 
 ```
-#file:.claude/skills/api-test-case-generator/SKILL.md
+#file:.github/skills/api-test-case-generator/SKILL.md
 
 Generate API test cases for:
 POST /api/users/register
@@ -144,34 +159,16 @@ Auth: Bearer JWT
 Body: { email, password, name }
 ```
 
-Copilot will follow the skill's Phase 1 rules, ask any missing questions, then output the markdown table in chat.
-
-**Step 2 — Save the markdown table**
-
-Copy the table Copilot outputs and save it to a file:
-
-```
-tests/output/api-tests-register.md
-```
-
-Make sure it follows the pipe-delimited format with a header row and `---` separator row. For multiple sheets, add `## Sheet: <name>` headings before each table.
-
-**Step 3 — Run the converter**
+If Copilot can't run the converter itself, save the markdown table it produces to a file and run the converter yourself:
 
 ```bash
-python3 .claude/skills/shared/md_table_to_xlsx.py \
-  tests/output/api-tests-register.md \
+python3 .github/skills/api-test-case-generator/scripts/md_table_to_xlsx.py \
+  api-tests-register.md \
   outputs/register-api-tests.xlsx
 ```
 
-Open `outputs/register-api-tests.xlsx` in Excel or Google Sheets.
-
-### Tips for Copilot Chat users
-
-- **Attach the SKILL.md every time** — Copilot has no memory of previous sessions, so you must include `#file:` on each new chat.
+- **Attach the SKILL.md on every new chat** — Copilot has no memory of previous sessions.
 - **Ask Copilot to show the full table** — if it truncates, reply "show all rows without truncating."
-- **Use `@workspace`** if you want Copilot to infer details from your codebase (e.g. reading your OpenAPI spec or Jira ticket files).
-- **The converter is the same** — once you have the markdown file, the `python3` command and output format are identical to the Claude Code workflow.
 
 ---
 
@@ -182,7 +179,7 @@ Open `outputs/register-api-tests.xlsx` in Excel or Google Sheets.
 ### 1. API Test Case Generator
 
 **Skill name:** `api-test-case-generator`
-**File:** [.claude/skills/api-test-case-generator/SKILL.md](.claude/skills/api-test-case-generator/SKILL.md)
+**File:** [skills/api-test-case-generator/SKILL.md](skills/api-test-case-generator/SKILL.md)
 
 #### Description
 
@@ -235,11 +232,11 @@ Generates a complete, execution-ready API test suite (REST or GraphQL) as an XLS
 ### 2. Test Case Generator
 
 **Skill name:** `test-case-generator`
-**File:** [.claude/skills/test-case-generator/SKILL.md](.claude/skills/test-case-generator/SKILL.md)
+**File:** [skills/test-case-generator/SKILL.md](skills/test-case-generator/SKILL.md)
 
 #### Description
 
-Generates comprehensive Test Case Documents as an XLSX spreadsheet from Jira tickets and acceptance criteria. Maps each acceptance criterion to executable test scenarios covering positive, negative, edge-case, security, and UX flows. Produces two sheets: a Test Cases sheet and a Summary/Coverage Mapping sheet.
+Generates comprehensive Test Case Documents as an XLSX spreadsheet from Jira tickets and acceptance criteria. Maps each acceptance criterion to executable test scenarios covering positive, negative, edge-case, security, and UX flows. Produces three sheets: Test Cases, Summary, and Coverage.
 
 #### When to Use
 
@@ -268,13 +265,16 @@ Generates comprehensive Test Case Documents as an XLSX spreadsheet from Jira tic
 
 **Row count:** 5–20 test cases per ticket
 
-#### Output — Two Sheets
+#### Output — Three Sheets
 
 **Sheet 1 — Test Cases (14 columns):**
 `Test Case ID` · `Test Case Name` · `Description` · `Prerequisites` · `Test Steps` · `Input Data` · `Expected Result` · `Actual Result` · `Status` · `Labels` · `Comments` · `References` · `Screenshot / Evidence` · `Executed Date`
 
-**Sheet 2 — Summary:**
-Summary Counts (total test cases, breakdown by type) + Coverage Mapping (each acceptance criterion → test case IDs that cover it)
+**Sheet 2 — Summary:** test case counts (total and breakdown by type)
+
+**Sheet 3 — Coverage:** each acceptance criterion → test case IDs that cover it
+
+**Multiple tickets:** one sheet per ticket in the same workbook.
 
 **ID format:** `TC-<JIRA-ID>-<NNN>` — e.g. `TC-PROJ-123-001`
 
@@ -285,7 +285,7 @@ Summary Counts (total test cases, breakdown by type) + Coverage Mapping (each ac
 ### 3. Test Data Generator
 
 **Skill name:** `test-data-generator`
-**File:** [.claude/skills/test-data-generator/SKILL.md](.claude/skills/test-data-generator/SKILL.md)
+**File:** [skills/test-data-generator/SKILL.md](skills/test-data-generator/SKILL.md)
 
 #### Description
 
@@ -332,7 +332,7 @@ Generates comprehensive, Excel-ready test data documents for data validation and
 ### 4. Security Test Case Generator
 
 **Skill name:** `security-test-case-generator`
-**File:** [.claude/skills/security-test-case-generator/SKILL.md](.claude/skills/security-test-case-generator/SKILL.md)
+**File:** [skills/security-test-case-generator/SKILL.md](skills/security-test-case-generator/SKILL.md)
 
 #### Description
 
@@ -392,7 +392,7 @@ Generates a comprehensive, OWASP-aligned security test case suite for a web feat
 ### 5. Bug Report Generator
 
 **Skill name:** `bug-report-generator`
-**File:** [.claude/skills/bug-report-generator/SKILL.md](.claude/skills/bug-report-generator/SKILL.md)
+**File:** [skills/bug-report-generator/SKILL.md](skills/bug-report-generator/SKILL.md)
 
 #### Description
 
@@ -457,7 +457,7 @@ Transforms unstructured QA observations, logs, console errors, and screen record
 ### 6. Performance Test Case Generator
 
 **Skill name:** `performance-test-case-generator`
-**File:** [.claude/skills/performance-test-case-generator/SKILL.md](.claude/skills/performance-test-case-generator/SKILL.md)
+**File:** [skills/performance-test-case-generator/SKILL.md](skills/performance-test-case-generator/SKILL.md)
 
 #### Description
 
@@ -511,7 +511,7 @@ Generates a complete, execution-ready performance and load test suite covering a
 ### 7. Usability Test Case Generator
 
 **Skill name:** `usability-test-case-generator`
-**File:** [.claude/skills/usability-test-case-generator/SKILL.md](.claude/skills/usability-test-case-generator/SKILL.md)
+**File:** [skills/usability-test-case-generator/SKILL.md](skills/usability-test-case-generator/SKILL.md)
 
 #### Description
 
@@ -579,11 +579,11 @@ Generates task-based usability test scenarios for moderated or unmoderated user 
 
 ---
 
-## Shared Converter Script
+## Converter Script
 
-**File:** [.claude/skills/shared/md_table_to_xlsx.py](.claude/skills/shared/md_table_to_xlsx.py)
+**File:** `skills/<skill-name>/scripts/md_table_to_xlsx.py`
 
-All seven skills call this shared script in Phase 3. It is never copied into individual skill folders.
+Every skill bundles its own copy of the converter so each folder can be installed on its own, and calls it in Phase 3 as `${CLAUDE_SKILL_DIR}/scripts/md_table_to_xlsx.py`. The copies are meant to be identical — when you change the converter, copy it to all seven skills. The same applies to `references/PHASE1_GUIDE.md` and `assets/PROJECT_CONTEXT.md`.
 
 ### What It Does
 
@@ -595,24 +595,17 @@ All seven skills call this shared script in Phase 3. It is never copied into ind
 
 ### Usage
 
+Requires Python 3.8+ and `openpyxl` (`pip install openpyxl`). On Windows, if `python3` prints "Python was not found", use `python` or `py -3`.
+
 ```bash
 # Single-table conversion
-python3 .claude/skills/shared/md_table_to_xlsx.py input.md output.xlsx
+python3 skills/test-case-generator/scripts/md_table_to_xlsx.py input.md outputs/output.xlsx
 
-# Multi-sheet (input.md contains ## Sheet: headings)
-python3 .claude/skills/shared/md_table_to_xlsx.py multi-sheet.md output.xlsx
+# Multi-sheet (input.md contains ## Sheet: headings, one table per sheet)
+python3 skills/test-case-generator/scripts/md_table_to_xlsx.py multi-sheet.md outputs/output.xlsx
 ```
 
-### Smoke Test
-
-```bash
-pip install -r requirements.txt
-python3 .claude/skills/shared/md_table_to_xlsx.py tests/sample-input.md tests/sample-output.xlsx
-# Expected: {"status": "success", "file": "tests/sample-output.xlsx"}
-
-# Run the full automated test suite
-python3 -m pytest tests/test_converter.py -v
-```
+If the converter reports an error, fix the markdown file and re-run it. Don't hand-edit the `.xlsx`.
 
 ---
 
@@ -621,7 +614,7 @@ python3 -m pytest tests/test_converter.py -v
 | Skill | Trigger keywords | Columns | Min rows | ID format |
 |---|---|---|---|---|
 | API Test Case Generator | "API tests", "endpoint test cases", "QA this API" | 14 | AUTH:3, SEC:3, PERF:1 | `API-TC-AUTH-001` |
-| Test Case Generator | "test cases from Jira", "acceptance criteria", "feature test cases" | 14 + Summary sheet | 5–20 per ticket | `TC-PROJ-123-001` |
+| Test Case Generator | "test cases from Jira", "acceptance criteria", "feature test cases" | 14 + Summary & Coverage sheets | 5–20 per ticket | `TC-PROJ-123-001` |
 | Test Data Generator | "test data for X", "test this form", "data for my API" | 8 | 50 | `TD_001` |
 | Security Test Case Generator | "security test cases", "OWASP test", "pen test checklist" | 11 | 2/injection, 3 session | `SEC-INJECT-001` |
 | Bug Report Generator | "bug report", "document this bug", "Jira-ready bug report" | 3 (Section/Field/Value) | All 6 sections | N/A (section-based) |
