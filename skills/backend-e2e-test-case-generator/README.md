@@ -5,6 +5,23 @@ API → Service → DB chain for a specific feature or endpoint: data type contr
 payload persistence, service-layer business rule validation, and full scenario coverage
 (positive, negative, boundary, null, type contract, persistence, business rule).
 
+## Usage
+
+Say any of the following to Claude to invoke this skill:
+
+- "Generate backend E2E test cases for the user registration feature"
+- "Create E2E tests for the POST /orders endpoint"
+- "API to DB test cases for the payment service"
+- "Backend integration tests for ticket PROJ-123"
+
+A feature name or ticket ID is required to scope which endpoints are generated. Have at least one context source ready (MCP DB connection, Swagger/OpenAPI URL, Postman collection, or docs page) for schema-cited output.
+
+## Scope
+
+This skill covers the full **API → Service → DB chain**: request payload validation, service-layer business rule enforcement, field transformations, and DB persistence assertions. Scenario types include positive, negative, boundary, null, type contract, persistence, and business rule.
+
+It does **not** cover deployment readiness or system liveness — use `backend-smoke-test-case-generator` for go/no-go checks after a deployment.
+
 ## Output
 
 | Sheet | Contents |

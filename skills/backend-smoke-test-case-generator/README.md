@@ -4,6 +4,23 @@ Generates a Backend Smoke Test Case Document as an XLSX workbook. Covers API hea
 connectivity, DB object existence, stored procedure executability, trigger state, FK constraint
 state, integration dependencies, and deployment verification.
 
+## Usage
+
+Say any of the following to Claude to invoke this skill:
+
+- "Generate backend smoke tests for my service"
+- "Create a post-deployment smoke test checklist"
+- "Backend health verification checks"
+- "Go/no-go checklist for the backend deployment"
+
+For the best output, have at least one of the following ready: an MCP database connection, a Swagger/OpenAPI URL, or a Postman collection. The skill works without them but produces generic template rows.
+
+## Scope
+
+This skill answers one question: **is the system alive and its dependencies wired correctly?**
+
+It covers API reachability, DB connectivity, DB object existence (tables, views, procedures, triggers, FK constraints), integration dependencies, and deployment metadata. It does **not** test business logic, field transformations, or scenario coverage — use `backend-e2e-test-case-generator` for that.
+
 ## Output
 
 | Sheet | Contents |
