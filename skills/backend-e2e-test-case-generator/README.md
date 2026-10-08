@@ -45,3 +45,18 @@ payload persistence, service-layer business rule validation, and full scenario c
 - Feature name or ticket ID (required — scopes which endpoints are generated)
 - Optional: MCP database connection for auto-introspection
 - Optional: Swagger/OpenAPI URL, Postman collection, or docs page for API contract
+
+## PROJECT_CONTEXT.md guidance
+
+Copy `assets/PROJECT_CONTEXT.md` to your project root and fill in the sections below for the best results with this skill. The skill reads it automatically before Phase 1.
+
+**Most useful sections for backend E2E testing:**
+
+- **Product Background** — brief description of the service under test
+- **Key Workflows & Features** — list the endpoints / features in scope so the skill doesn't generate cases for things that don't exist
+- **Business Logic Rules** — field transformations before DB insert (e.g. status uppercased), auto-populated columns (e.g. `created_at`, `uuid`), soft-delete rules, enum mappings (e.g. API `"active"` → DB `1`), audit trail rules
+- **Layer Mapping** — which service/module owns which tables (e.g. `UserService → users, user_roles`)
+- **Acceptance Criteria Format** — how ACs are written in your project (Gherkin / numbered list / user story); paste an example so the skill matches your format
+- **Domain Glossary** — terms with project-specific meanings, so generated cases use correct terminology
+- **API Contract** — add a comment with your Swagger/OpenAPI URL or Postman collection path; the skill will ask for this in Phase 1 if not provided
+- **Database** — DB engine and whether an MCP connection is available; include `CREATE TABLE` DDL or schema export if no MCP

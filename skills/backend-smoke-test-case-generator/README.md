@@ -41,3 +41,26 @@ state, integration dependencies, and deployment verification.
 ## Check Categories
 
 `API Health` · `DB Connectivity` · `DB Object Existence` · `DB Executable` · `DB Integrity` · `Integration` · `Security & Config` · `Deployment`
+
+## PROJECT_CONTEXT.md guidance
+
+Copy `assets/PROJECT_CONTEXT.md` to your project root and fill in the sections below for the best results with this skill. The skill reads it automatically before Phase 1.
+
+**Most useful sections for backend smoke testing:**
+
+- **Product Background** — what the backend service does and who consumes it
+- **Key Workflows & Features** — list the major modules/endpoints so the skill knows what exists
+- **Domain Glossary** — project-specific terms used in table or endpoint names
+- **Tech stack** — add a comment with framework, language/runtime, and DB engine
+- **API Contract** — Postman collection path, OpenAPI/Swagger URL, base URL env var, and route prefix (e.g. `/api/v1`)
+- **Authentication** — auth type (Bearer token, API key, OAuth), env var for the token, open endpoints (no auth required), app-to-app-only endpoints
+- **Liveness / Health Check** — the endpoint used as a deployment probe (fast, read-only, no auth), and its expected status code
+- **Database** — schema name, whether an MCP tool is available, and connection env vars
+- **Critical Tables** — tables that must exist and return rows for the system to function (one row per table)
+- **Critical Views** — views the application queries depend on
+- **Stored Procedures / Functions** — named procedures/functions that must be executable
+- **Triggers** — triggers whose existence must be verified (table + event)
+- **FK / Constraint Checks** — foreign key relationships critical to data integrity
+- **Integration Dependencies** — external services the backend calls, with their expected smoke check (e.g. `GET /health → 200`)
+- **Key Endpoints (Smoke-Critical Subset)** — read-only endpoints covering each major module; smoke tests verify these return 200 and a non-empty body
+- **Environment Notes** — write/rollback safety, required seed data, known flaky endpoints
