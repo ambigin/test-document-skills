@@ -20,6 +20,8 @@ Your complete guide to generating QA documents with Claude Code or GitHub Copilo
    - [Bug Report Generator](#5-bug-report-generator)
    - [Performance Test Case Generator](#6-performance-test-case-generator)
    - [Usability Test Case Generator](#7-usability-test-case-generator)
+   - [Backend Smoke Test Case Generator](#8-backend-smoke-test-case-generator)
+   - [Backend E2E Test Case Generator](#9-backend-e2e-test-case-generator)
 8. [Converter Script](#converter-script)
 9. [Quick Reference Table](#quick-reference-table)
 
@@ -110,6 +112,15 @@ Every skill follows the same three-phase workflow:
 2. **Write Markdown Tables** — saved to a temp file outside your project, using `## Sheet: <name>` headings for multi-sheet workbooks
 3. **Convert to XLSX** — the skill runs its bundled `scripts/md_table_to_xlsx.py`
 
+The two backend skills run a **Phase 0 — Gather context** before Phase 1. They read `PROJECT_CONTEXT.md`, introspect the database through an MCP connection if one is available, and fetch an API contract (Swagger/OpenAPI, Postman, or a docs page). What they find sets the context mode:
+
+| Mode | Context found | Effect |
+|---|---|---|
+| **Full** | MCP database + API contract | Every assertion cites its source |
+| **DB-Full** | MCP database only | DB checks cited; API checks generic |
+| **API-Full** | API contract only | API checks cited; DB checks use the schema in `PROJECT_CONTEXT.md` |
+| **Generic** | Neither | Fixed template rows marked `[Generic: no context]`, plus a warning |
+
 ---
 
 ## Cheat Sheet — What to Say
@@ -122,6 +133,8 @@ Every skill follows the same three-phase workflow:
 | Security tests | "Security test cases for our login screen" |
 | Performance tests | "Load test plan for our checkout API" |
 | Usability tests | "Usability test scenarios for the onboarding flow" |
+| Backend smoke checks | "Post-deployment smoke checks for our backend" |
+| Backend E2E (API → DB) tests | "Backend E2E test cases for POST /orders" |
 | Bug report | "Turn this into a bug report: [paste your observation]" |
 
 ---
@@ -579,11 +592,144 @@ Generates task-based usability test scenarios for moderated or unmoderated user 
 
 ---
 
+### 8. Backend Smoke Test Case Generator
+
+**Skill name:** `backend-smoke-test-case-generator`
+**File:** [skills/backend-smoke-test-case-generator/SKILL.md](skills/backend-smoke-test-case-generator/SKILL.md)
+
+#### Description
+
+Generates a backend smoke test checklist as an XLSX workbook. A smoke test answers one question: **is the system alive and are its dependencies wired correctly?** It covers API health, DB connectivity, DB object existence, stored procedure executability, trigger and FK constraint state, integration dependencies, security config, and deployment metadata. It does not test business logic — use the [Backend E2E Test Case Generator](#9-backend-e2e-test-case-generator) for that.
+
+#### When to Use
+
+- "Generate backend smoke tests for my service"
+- "Post-deployment smoke checks"
+- "Backend health verification checks"
+- "Go/no-go checklist for the backend deployment"
+
+#### Required Inputs
+
+Nothing is strictly required — the skill gathers context in Phase 0 and asks only what it can't detect.
+
+| Input | Required? | Notes |
+|---|---|---|
+| MCP database connection | No | Auto-introspects tables, views, procedures, triggers, FK constraints, sequences, indexes, partitions, scheduled jobs |
+| Swagger/OpenAPI URL, Postman collection, or docs page | No | Used for endpoint health and auth checks |
+| Integration dependencies | Asked in Phase 1 | Message queues, caches, blob storage, external APIs — MCP can't detect these |
+| Write safety | Asked in Phase 1 | Whether write + rollback checks are allowed, or read-only only |
+| Health / version endpoint, migration table | Asked in Phase 1 | Used for deployment checks |
+
+Context modes (Full / DB-Full / API-Full / Generic) are described under [What You Get Every Time](#what-you-get-every-time).
+
+#### Coverage — 8 Check Categories
+
+| Category | Included when | What It Covers |
+|---|---|---|
+| API Health | API contract or health endpoint known | Health endpoint 200, auth endpoint reachable, critical endpoints non-5xx, unauthenticated request → 401 |
+| DB Connectivity | Always | Read query succeeds; write + rollback succeeds (if write-safe) |
+| DB Object Existence | MCP or schema provided | Tables queryable, views resolve, sequences accessible, Oracle synonyms resolve |
+| DB Executable | Procedures/functions found | Each procedure/function runs with safe arguments |
+| DB Integrity | MCP connected | Triggers and FK constraints ENABLED (DISABLED flagged ⚠), current-period partitions, critical indexes |
+| Integration | Confirmed in Phase 1 | Queue/topic accessible, cache PING, blob bucket writable, external API reachable |
+| Security & Config | Always | TLS certificate valid > 30 days, required env vars present, CORS headers |
+| Deployment | Metadata endpoints confirmed | Health/version endpoint, app version, DB migration version |
+
+**Minimum rows:** at least 1 per applicable category. In Full mode, 1 per discovered object (one per table, trigger, procedure, and so on). Generic mode produces 10 fixed template rows.
+
+#### Output — Two Sheets
+
+**Sheet 1 — Smoke Tests (10 columns):**
+`Test Case ID` · `Check Category` · `Component` · `Check Description` · `Verification Method` · `Expected Result` · `DB Query` · `Automation Candidate` · `References` · `Comments`
+
+**Sheet 2 — Summary:** count by Check Category, total, and the context mode used
+
+**ID format:** `BSM-<NNN>` — e.g. `BSM-001`
+
+**Verification Method:** `HTTP Request` · `MCP Query` · `Manual`
+
+**Automation Candidate:** `Yes` (deterministic HTTP/SQL check) · `No` (needs human judgment) · `Partial` (automatable but needs manual setup; always used for generic rows)
+
+**References:** `[DB: MCP <engine> <date>]` · `[API: <source> <date>]` · `[Generic: no context]`
+
+#### Most Useful PROJECT_CONTEXT.md Sections
+
+Tech stack, API contract, authentication, health check endpoint, database, critical tables/views/procedures/triggers, FK checks, integration dependencies, smoke-critical endpoints, and environment notes. See [skills/backend-smoke-test-case-generator/README.md](skills/backend-smoke-test-case-generator/README.md) for what to put in each.
+
+---
+
+### 9. Backend E2E Test Case Generator
+
+**Skill name:** `backend-e2e-test-case-generator`
+**File:** [skills/backend-e2e-test-case-generator/SKILL.md](skills/backend-e2e-test-case-generator/SKILL.md)
+
+#### Description
+
+Generates backend E2E test cases that validate the full **API → Service → DB** chain for a specific feature or endpoint. Every test case comes with a concrete DB assertion — the table, column, expected value, and the SQL query that confirms it — rather than "verify the data persisted". Covers data type contracts between the API and DB, payload persistence, and service-layer business-rule transformations. It is not for UI behaviour (use the [Test Case Generator](#2-test-case-generator)) or deployment readiness (use the [Backend Smoke Test Case Generator](#8-backend-smoke-test-case-generator)).
+
+#### When to Use
+
+- "Generate backend E2E test cases for the user registration feature"
+- "Create E2E tests for the POST /orders endpoint"
+- "API to DB validation for the payment service"
+- "Data contract tests" / "persistence test cases"
+- "Backend integration tests for ticket PROJ-123"
+
+#### Required Inputs
+
+| Input | Required? | Notes |
+|---|---|---|
+| Feature name or ticket ID | Yes | Scopes which endpoints and tables are in scope |
+| Swagger/OpenAPI URL, Postman collection, or docs page | No | Used to identify endpoints and parse request/response schemas |
+| MCP database connection | No | Traces tables, columns, types, triggers, FK constraints, and sequences per endpoint; flags API ↔ DB type mismatches |
+| Business rules | No | Read from `PROJECT_CONTEXT.md`, otherwise asked in Phase 1 |
+| Acceptance criteria | No | If absent, scenarios are inferred and flagged `(inferred — verify)` |
+| Write safety | Asked in Phase 1 | Whether INSERT/UPDATE/DELETE is allowed, or read-only/rollback only |
+
+Context modes (Full / DB-Full / API-Full / Generic) are described under [What You Get Every Time](#what-you-get-every-time).
+
+#### Coverage — 7 Scenario Types
+
+| Scenario Type | When | What It Covers |
+|---|---|---|
+| Positive | Every endpoint | Valid payload; DB state matches expected values |
+| Negative | Every endpoint | Wrong type, forbidden value, or missing required field → correct error response |
+| Null | Every endpoint | Null/empty for each NOT NULL column or `required` API field |
+| Boundary | Every endpoint | Max length and min/max value for every constrained field |
+| Type Contract | When applicable | One row per API field whose type doesn't match its DB column (e.g. no `maxLength` → `VARCHAR(10)`) |
+| Persistence | Every write operation | Each payload field lands in the right column with the right value |
+| Business Rule | When applicable | One row per transformation rule — uppercasing, enum mapping, auto-populated columns, soft delete, audit trail |
+
+**Row count:** 8–25 test cases per feature. Every acceptance criterion must map to at least one test case. Generic mode produces 12 fixed template rows.
+
+#### Output — Three Sheets
+
+**Sheet 1 — Test Cases (12 columns):**
+`Test Case ID` · `Endpoint` · `Layer` · `Scenario Type` · `Preconditions` · `Request Payload` · `Expected API Response` · `DB Assertion` · `Business Rule Applied` · `Automation Candidate` · `References` · `Comments`
+
+**Sheet 2 — Summary:** count by Scenario Type and by Check Category (API / DB / API→DB), total, and the context mode used
+
+**Sheet 3 — Coverage:** each acceptance criterion → test case IDs that cover it (only when ACs were provided)
+
+**ID format:** `BE2E-<FEATURE>-<NNN>` — e.g. `BE2E-REG-001`
+
+**Layer:** `API` · `Service` · `DB` · `API→DB`
+
+**Automation Candidate:** `Yes` (known payload + SQL-verifiable state) · `No` (judgment, inferred rule, third-party or notification) · `Partial` (automatable assertion, manual setup). Inferred rows are `No` or `Partial`; generic rows are always `Partial`.
+
+**References:** `[DB: MCP <engine> <date>]` · `[API: <source> <date>]` · `[Generic: no context]`
+
+#### Most Useful PROJECT_CONTEXT.md Sections
+
+Key workflows (endpoints in scope), business logic rules (field transformations, auto-populated columns, soft delete, enum mappings, audit trail), layer mapping (which service owns which tables), acceptance-criteria format, API contract, and database (engine, MCP availability, or `CREATE TABLE` DDL). See [skills/backend-e2e-test-case-generator/README.md](skills/backend-e2e-test-case-generator/README.md) for details.
+
+---
+
 ## Converter Script
 
 **File:** `skills/<skill-name>/scripts/md_table_to_xlsx.py`
 
-Every skill bundles its own copy of the converter so each folder can be installed on its own, and calls it in Phase 3 as `${CLAUDE_SKILL_DIR}/scripts/md_table_to_xlsx.py`. The copies are meant to be identical — when you change the converter, copy it to all seven skills. The same applies to `references/PHASE1_GUIDE.md` and `assets/PROJECT_CONTEXT.md`.
+Every skill bundles its own copy of the converter so each folder can be installed on its own, and calls it in Phase 3 as `${CLAUDE_SKILL_DIR}/scripts/md_table_to_xlsx.py`. The copies are meant to be identical — when you change the converter, copy it to all nine skills. The same applies to `references/PHASE1_GUIDE.md` and `assets/PROJECT_CONTEXT.md`.
 
 ### What It Does
 
@@ -620,7 +766,9 @@ If the converter reports an error, fix the markdown file and re-run it. Don't ha
 | Bug Report Generator | "bug report", "document this bug", "Jira-ready bug report" | 3 (Section/Field/Value) | All 6 sections | N/A (section-based) |
 | Performance Test Case Generator | "load test", "stress test", "soak test", "k6 plan" | 14 | 2 LOAD + 1 each other | `PERF-PAY-001` |
 | Usability Test Case Generator | "usability test", "task scenarios", "user research script" | 15 | 5–15 + 1 survey row | `UT-PROJ-456-001` |
+| Backend Smoke Test Case Generator | "smoke tests", "post-deployment checks", "go/no-go checklist" | 10 + Summary sheet | ≥1 per applicable category | `BSM-001` |
+| Backend E2E Test Case Generator | "backend E2E", "API to DB validation", "data contract tests" | 12 + Summary & Coverage sheets | 8–25 per feature | `BE2E-REG-001` |
 
 ---
 
-*Last updated: September 2026 · Skills available: 7*
+*Last updated: October 2026 · Skills available: 9*

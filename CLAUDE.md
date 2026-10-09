@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A library of seven skills for Claude Code and GitHub Copilot that generate QA documentation (test cases, test data, bug reports, security/performance/usability test suites) as formatted `.xlsx` workbooks. Every skill follows the same three-phase pattern and converts to XLSX with a bundled Python script. Users install the skills with `install.sh` / `install.ps1`.
+A library of nine skills for Claude Code and GitHub Copilot that generate QA documentation (test cases, test data, bug reports, security/performance/usability and backend smoke/E2E test suites) as formatted `.xlsx` workbooks. Every skill follows the same three-phase pattern and converts to XLSX with a bundled Python script. Users install the skills with `install.sh` / `install.ps1`.
 
 ## Requirements
 
@@ -24,15 +24,15 @@ install.sh                         # Installer: macOS, Linux, Git Bash (bash 3.2
 install.ps1                        # Installer: Windows PowerShell 5.1 and PowerShell 7
 ```
 
-The seven skills: `api-test-case-generator`, `bug-report-generator`, `performance-test-case-generator`, `security-test-case-generator`, `test-case-generator`, `test-data-generator`, `usability-test-case-generator`.
+The nine skills: `api-test-case-generator`, `backend-e2e-test-case-generator`, `backend-smoke-test-case-generator`, `bug-report-generator`, `performance-test-case-generator`, `security-test-case-generator`, `test-case-generator`, `test-data-generator`, `usability-test-case-generator`.
 
 ## Bundled files must stay identical
 
-`PHASE1_GUIDE.md`, `md_table_to_xlsx.py`, and `PROJECT_CONTEXT.md` are duplicated in every skill so each folder can be installed on its own. When you change one, copy it to all seven skills. Verify with:
+`PHASE1_GUIDE.md`, `md_table_to_xlsx.py`, and `PROJECT_CONTEXT.md` are duplicated in every skill so each folder can be installed on its own. When you change one, copy it to all nine skills. Verify with:
 
 ```bash
 md5sum skills/*/scripts/md_table_to_xlsx.py skills/*/references/PHASE1_GUIDE.md skills/*/assets/PROJECT_CONTEXT.md | awk '{print $1}' | sort | uniq -c
-# Expected: three lines, each with count 7
+# Expected: three lines, each with count 9
 ```
 
 ## The three-phase pattern (every skill follows this)
@@ -46,6 +46,8 @@ md5sum skills/*/scripts/md_table_to_xlsx.py skills/*/references/PHASE1_GUIDE.md 
    python3 "${CLAUDE_SKILL_DIR}/scripts/md_table_to_xlsx.py" <scratchpad>/<slug>.md <output>/<slug>.xlsx
    ```
    `${CLAUDE_SKILL_DIR}` is a placeholder the assistant fills in with the installed skill's folder path — it is **not** a real shell environment variable and is not set by the installer. The SKILL.md files include a fallback: if the path isn't resolved, use the full path to the skill folder directly. Use `/mnt/user-data/outputs/` on Claude.ai or `./outputs/` locally. Never write ad-hoc openpyxl code inside a skill.
+
+**Backend skills add a Phase 0.** `backend-smoke-test-case-generator` and `backend-e2e-test-case-generator` run a **Phase 0 — Context gathering** before Phase 1: read `PROJECT_CONTEXT.md`, introspect the DB through an MCP connection if available, and fetch the API contract (Swagger/OpenAPI, Postman, docs page). The result sets a context mode — Full / DB-Full / API-Full / Generic — and every row cites its source in References (`[DB: MCP <engine> <date>]`, `[API: <source> <date>]`, or `[Generic: no context]`). Phases 1–3 are otherwise the same.
 
 ## Key conventions
 
