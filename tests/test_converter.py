@@ -2,7 +2,7 @@
 Converter tests for skills/*/scripts/md_table_to_xlsx.py.
 Run with: pytest tests/test_converter.py
 
-Each test is parameterised over all seven skill converters so any
+Each test is parameterised over every skill converter so any
 divergence between copies is caught immediately.
 """
 
@@ -116,6 +116,6 @@ def test_sample_row_count(converter, tmp_path):
 def test_all_converter_copies_identical():
     contents = [c.read_text() for c in CONVERTERS]
     assert len(set(contents)) == 1, (
-        "Converter copies differ between skills — update all seven after any change: "
+        "Converter copies differ between skills — update every skill after any change: "
         + str([c.parent.parent.name for c in CONVERTERS])
     )

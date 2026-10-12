@@ -1,6 +1,6 @@
 # Test Document Skills
 
-Seven AI skills that write QA documentation for you — test cases, test data, security, performance and usability test suites, and bug reports — and deliver each one as a formatted Excel workbook. They work with **Claude Code** and **GitHub Copilot**.
+Nine AI skills that write QA documentation for you — test cases, test data, security, performance and usability test suites, backend smoke and E2E (API → DB) test suites, and bug reports — and deliver each one as a formatted Excel workbook. They work with **Claude Code** and **GitHub Copilot**.
 
 ## Overview
 
@@ -11,6 +11,8 @@ Every skill follows the same three-phase workflow:
 1. **Validate inputs** — asks only for what's missing and can't be inferred; everything else is inferred and flagged `(assumed — verify)` so you can review it.
 2. **Write the tables** — builds the markdown tables and saves them to a temp file (not your project). The tables aren't echoed to chat.
 3. **Convert to XLSX** — runs the skill's bundled `md_table_to_xlsx.py` to produce the workbook in `./outputs/` (or `/mnt/user-data/outputs/` on Claude.ai), then tells you the path.
+
+The two backend skills (`backend-smoke-test-case-generator` and `backend-e2e-test-case-generator`) add a **Phase 0 — Gather context** before Phase 1: they read `PROJECT_CONTEXT.md`, introspect the database through an MCP connection if one is available, and fetch your Swagger/OpenAPI spec, Postman collection, or docs page. What they find sets the context mode (Full, DB-Full, API-Full, or Generic), which decides how much of the output is cited from your real schema.
 
 ## Installation
 
@@ -37,7 +39,7 @@ The installer walks you through three choices:
 
 1. **Assistant** — Claude Code, GitHub Copilot, or both
 2. **Scope** — *Global* (your user account, every project) or *Project* (one repo; commit it to share with your team)
-3. **Skills** — pick any or all of the seven
+3. **Skills** — pick any or all of the nine
 
 It shows a plan, asks for confirmation, copies the skills, and checks for `openpyxl`.
 
@@ -129,9 +131,13 @@ Claude: Test cases saved to ./outputs/post-api-users-register-api-tests.xlsx
 | `security-test-case-generator` | OWASP-aligned security tests executable from the browser, DevTools, or Burp/ZAP | "Security test cases for our login screen" |
 | `performance-test-case-generator` | Load, stress, spike, soak, scalability, concurrency, and failover scenarios with SLA limits and k6/JMeter/Gatling/Locust/Artillery stubs | "Load test plan for our checkout API" |
 | `usability-test-case-generator` | Task-based scenarios for moderated or unmoderated user research | "Usability test scenarios for onboarding" |
+| `backend-smoke-test-case-generator` | Post-deployment go/no-go checks: API health, DB connectivity, DB objects, trigger and FK state, integrations, and deployment version — Smoke Tests and Summary sheets | "Post-deployment smoke checks for our backend" |
+| `backend-e2e-test-case-generator` | API → Service → DB test cases for a feature: payload persistence, type contracts, and business-rule transformations, each with a SQL assertion — Test Cases, Summary, and Coverage sheets | "Backend E2E test cases for POST /orders" |
 | `bug-report-generator` | Developer-ready bug report from raw observations and logs — one sheet per bug | "Turn this into a bug report: …" |
 
 > **Bug reports use a different table shape.** Instead of one row per test case, each sheet is a three-column `Section / Field / Value` table (one row per report field) that maps directly onto Jira's bug fields.
+
+> **The backend skills work best with real context.** Connect an MCP database tool and/or provide a Swagger/OpenAPI URL or Postman collection, and every check cites its source (`[DB: MCP …]`, `[API: …]`). Without either, they produce generic template rows marked `[Generic: no context]` and warn you.
 
 Each skill folder has its own `README.md` with its columns, coverage rules, and inputs. For the full reference, see [qa_skills_documentation.md](qa_skills_documentation.md).
 
@@ -155,7 +161,7 @@ test-document-skills/
 ├── install.sh                     # Installer for macOS, Linux, Git Bash
 ├── install.ps1                    # Installer for Windows PowerShell 5.1 / 7
 └── skills/
-    └── <skill-name>/              # One self-contained folder per skill (7 total)
+    └── <skill-name>/              # One self-contained folder per skill (9 total)
         ├── SKILL.md               # Instructions the assistant follows — source of truth
         ├── README.md              # Human-readable summary of the skill
         ├── references/
@@ -166,7 +172,7 @@ test-document-skills/
             └── PROJECT_CONTEXT.md   # Blank project-context template
 ```
 
-`PHASE1_GUIDE.md`, `md_table_to_xlsx.py`, and `PROJECT_CONTEXT.md` are bundled into every skill so each folder can be installed on its own. They're meant to be identical, so when you change one, copy it to all seven skills.
+`PHASE1_GUIDE.md`, `md_table_to_xlsx.py`, and `PROJECT_CONTEXT.md` are bundled into every skill so each folder can be installed on its own. They're meant to be identical, so when you change one, copy it to all nine skills.
 
 ## The converter
 
@@ -198,7 +204,7 @@ pip install openpyxl pytest
 pytest tests/test_converter.py
 ```
 
-Tests are parameterised over all seven skill converters and will catch any divergence between copies.
+Tests are parameterised over every skill's converter and will catch any divergence between copies.
 
 ### Running the converter manually
 
@@ -237,5 +243,5 @@ The installers pick up any folder under `skills/` that contains a `SKILL.md`, so
 
 ---
 
-**Last updated**: September 2026
-**Skills available**: 7
+**Last updated**: October 2026
+**Skills available**: 9
